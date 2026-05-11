@@ -1,4 +1,6 @@
-son{
+json
+
+{
   "name": "SoloOS",
   "short_name": "SoloOS",
   "description": "The all-in-one app for UK sole traders",
