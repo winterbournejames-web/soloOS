@@ -24,7 +24,7 @@ const s = {
   g3: { display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: 8 },
   card: (accent) => ({ background: theme.surface, border: `1px solid ${accent ? accent + "55" : theme.border}`, borderRadius: 10, padding: "9px 12px", boxShadow: accent ? `0 0 16px ${accent}12` : "none", minWidth: 0, boxSizing: "border-box" }),
   ct: { fontSize: 9, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: theme.textMuted, marginBottom: 6, display: "flex", alignItems: "center", gap: 5, flexWrap: "wrap" },
-  stat: { fontSize: 22, fontWeight: 800, fontFamily: "'Syne', sans-serif", lineHeight: 1, marginBottom: 2 },
+  stat: { fontSize: 17, fontWeight: 800, fontFamily: "'Syne', sans-serif", lineHeight: 1, marginBottom: 2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" },
   sub: { fontSize: 10, color: theme.textMuted },
   pill: (color) => ({ display: "inline-flex", padding: "2px 6px", borderRadius: 100, fontSize: 10, fontWeight: 600, background: color + "22", color, border: `1px solid ${color}44`, whiteSpace: "nowrap" }),
   btn: (v = "primary") => ({ padding: "6px 12px", borderRadius: 7, border: v === "ghost" ? `1px solid ${theme.border}` : "none", cursor: "pointer", fontSize: 11, fontWeight: 600, fontFamily: "'DM Sans', sans-serif", background: v === "primary" ? theme.accent : "transparent", color: v === "primary" ? "#fff" : theme.textMuted, whiteSpace: "nowrap" }),
@@ -44,33 +44,50 @@ function Bar({ pct, color }) {
 function Pill({ color, children }) { return <span style={s.pill(color)}>{children}</span>; }
 function Card({ children, accent, style }) { return <div style={{ ...s.card(accent), ...style }}>{children}</div>; }
 
+// ── MODAL OVERLAY ─────────────────────────────────────────
+function Modal({ title, subtitle, onClose, onComplete, completeLabel = "✅ Complete", children, accentColor }) {
+  const color = accentColor || theme.accent;
+  return (
+    <div style={{
+      position: "fixed", inset: 0, zIndex: 1000,
+      background: "rgba(0,0,0,0.75)",
+      display: "flex", alignItems: "center", justifyContent: "center",
+      padding: 20, boxSizing: "border-box",
+    }}>
+      <div style={{
+        background: theme.surface, borderRadius: 16,
+        border: `1px solid ${color}55`,
+        boxShadow: `0 0 40px ${color}22`,
+        width: "100%", maxWidth: 520,
+        display: "flex", flexDirection: "column",
+        maxHeight: "90vh", overflow: "hidden",
+      }}>
+        {/* Modal header */}
+        <div style={{ padding: "16px 20px", borderBottom: `1px solid ${theme.border}`, display: "flex", alignItems: "center", justifyContent: "space-between", flexShrink: 0 }}>
+          <div>
+            <div style={{ fontFamily: "'Syne', sans-serif", fontWeight: 800, fontSize: 16, color: theme.text }}>{title}</div>
+            {subtitle && <div style={{ fontSize: 11, color: theme.textMuted, marginTop: 2 }}>{subtitle}</div>}
+          </div>
+          <button onClick={onClose} style={{ background: "none", border: `1px solid ${theme.border}`, borderRadius: 7, color: theme.textMuted, cursor: "pointer", fontSize: 14, width: 28, height: 28, display: "flex", alignItems: "center", justifyContent: "center" }}>✕</button>
+        </div>
+
+        {/* Modal body */}
+        <div style={{ padding: "20px", overflowY: "auto", flex: 1 }}>
+          {children}
+        </div>
+
+        {/* Modal footer */}
+        <div style={{ padding: "14px 20px", borderTop: `1px solid ${theme.border}`, display: "flex", gap: 10, justifyContent: "flex-end", flexShrink: 0 }}>
+          <button onClick={onClose} style={{ ...s.btn("ghost"), padding: "8px 16px" }}>Cancel</button>
+          <button onClick={onComplete} style={{ ...s.btn("primary"), padding: "8px 20px", fontSize: 12, background: color }}>{completeLabel}</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ── Smart Alerts (interactive) ────────────────────────────
-const INITIAL_ALERTS = [
-  {
-    id: 1, icon: "⚠️", color: "#ff5f57",
-    text: "INV-039 Northgate Media overdue 10 days",
-    actions: [
-      { label: "Send Reminder", icon: "📧", confirm: "Reminder sent to Northgate Media!" },
-      { label: "Mark Paid",     icon: "✅", confirm: "INV-039 marked as paid." },
-    ],
-  },
-  {
-    id: 2, icon: "📉", color: "#f5c842",
-    text: "Quiet patch predicted in ~6 weeks — 2 proposals open",
-    actions: [
-      { label: "View Proposals", icon: "📊", confirm: "Opening proposals..." },
-      { label: "Add Reminder",   icon: "🔔", confirm: "Reminder set for 4 weeks' time." },
-    ],
-  },
-  {
-    id: 3, icon: "💬", color: "#5ca8fc",
-    text: "No contact with Lumi Health in 3 days",
-    actions: [
-      { label: "Log Contact",  icon: "📝", confirm: "Contact logged for Lumi Health." },
-      { label: "Schedule Call", icon: "📞", confirm: "Call reminder added." },
-    ],
-  },
-];
+const INITIAL_ALERTS = [];
 
 function SmartAlerts() {
   const [alerts, setAlerts] = useState(INITIAL_ALERTS);
@@ -163,7 +180,7 @@ function SmartAlerts() {
   );
 }
 function Dashboard() {
-  const earned = 5150, target = 8000, pct = Math.round((earned / target) * 100);
+  const earned = 0, target = 8000, pct = Math.round((earned / target) * 100);
   return (
     <div style={s.page}>
       <div style={{ ...s.row, justifyContent: "space-between" }}>
@@ -173,8 +190,8 @@ function Dashboard() {
       <div style={s.g3}>
         {[
           { icon: "💰", label: "Monthly Goal", val: `£${earned.toLocaleString()}`, sub: `of £${target.toLocaleString()} · ${pct}%`, color: theme.accent, bar: pct },
-          { icon: "🏦", label: "Tax Jar", val: "£1,288", sub: "25% auto set-aside · SA due Jan 2027", color: theme.gold, bar: null },
-          { icon: "⏱", label: "Hours This Week", val: "23.5h", sub: "14h billable · 9.5h admin · £110/hr eff.", color: theme.green, bar: null },
+          { icon: "🏦", label: "Tax Jar", val: "£0", sub: "25% auto set-aside · SA due Jan 2027", color: theme.gold, bar: null },
+          { icon: "⏱", label: "Hours This Week", val: "0h", sub: "0h billable · 0h admin · £0/hr eff.", color: theme.green, bar: null },
         ].map((item, i) => (
           <Card key={i} accent={item.color}>
             <div style={s.ct}>{item.icon} {item.label}</div>
@@ -190,7 +207,7 @@ function Dashboard() {
           <SmartAlerts />
           <hr style={s.hr} />
           <div style={s.ct}>📅 Capacity This Month</div>
-          {[{ label: "Apex Studio", pct: 60, color: theme.accent }, { label: "Lumi Health", pct: 35, color: theme.green }, { label: "Northgate Media", pct: 20, color: theme.blue }, { label: "Available", pct: 85, color: theme.textDim }].map((item, i) => (
+          {[{ label: "No clients added yet", pct: 0, color: theme.textDim }].map((item, i) => (
             <div key={i} style={{ marginBottom: 7 }}>
               <div style={{ ...s.row, justifyContent: "space-between", marginBottom: 3 }}>
                 <span style={{ fontSize: 11 }}>{item.label}</span>
@@ -214,7 +231,7 @@ function Dashboard() {
 }
 
 function MiniRateCalc() {
-  const [salary, setSalary] = useState(60000);
+  const [salary, setSalary] = useState(0);
   const [weeks, setWeeks] = useState(46);
   const dayRate = Math.ceil(((salary + 5000) / (weeks * 5)) / 10) * 10;
   const hourRate = Math.ceil(dayRate / 6);
@@ -265,12 +282,7 @@ function TinyChart() {
 }
 
 // ── INVOICING ─────────────────────────────────────────────
-const initInvoices = [
-  { id: "INV-041", client: "Apex Studio", amount: 2400, due: "May 20", status: "Sent" },
-  { id: "INV-040", client: "Volta Finance", amount: 1800, due: "Apr 30", status: "Paid" },
-  { id: "INV-039", client: "Northgate Media", amount: 950, due: "May 15", status: "Overdue" },
-  { id: "INV-038", client: "Lumi Health", amount: 3200, due: "Jun 1", status: "Draft" },
-];
+const initInvoices = [];
 
 function Invoicing() {
   const [invoices, setInvoices] = useState(initInvoices);
@@ -301,15 +313,35 @@ function Invoicing() {
       </div>
 
       {creating && (
-        <Card accent={theme.accent}>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr auto", gap: 7, alignItems: "end" }}>
-            <div><label style={s.lbl}>Client</label><input style={s.input} value={form.client} onChange={e => setForm({ ...form, client: e.target.value })} placeholder="Client name" /></div>
-            <div><label style={s.lbl}>Amount (£)</label><input style={s.input} type="number" value={form.amount} onChange={e => setForm({ ...form, amount: e.target.value })} /></div>
-            <div><label style={s.lbl}>Due Date</label><input style={s.input} type="date" value={form.due} onChange={e => setForm({ ...form, due: e.target.value })} /></div>
-            <div><label style={s.lbl}>Status</label><select style={s.input} value={form.status} onChange={e => setForm({ ...form, status: e.target.value })}>{["Draft","Sent","Paid"].map(x => <option key={x}>{x}</option>)}</select></div>
-            <div style={{ display: "flex", gap: 5 }}><button style={s.btn("ghost")} onClick={() => setCreating(false)}>✕</button><button style={s.btn("primary")} onClick={create}>Save</button></div>
+        <Modal
+          title="📄 New Invoice"
+          subtitle="Fill in the details below to create your invoice"
+          accentColor={theme.accent}
+          onClose={() => setCreating(false)}
+          onComplete={create}
+          completeLabel="✅ Create Invoice"
+        >
+          <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+            <div>
+              <label style={{ ...s.lbl, fontSize: 11, marginBottom: 5 }}>Client Name</label>
+              <input style={{ ...s.input, fontSize: 13, padding: "9px 12px" }} value={form.client} onChange={e => setForm({ ...form, client: e.target.value })} placeholder="e.g. Apex Studio" autoFocus />
+            </div>
+            <div>
+              <label style={{ ...s.lbl, fontSize: 11, marginBottom: 5 }}>Amount (£)</label>
+              <input style={{ ...s.input, fontSize: 13, padding: "9px 12px" }} type="number" value={form.amount} onChange={e => setForm({ ...form, amount: e.target.value })} placeholder="0" />
+            </div>
+            <div>
+              <label style={{ ...s.lbl, fontSize: 11, marginBottom: 5 }}>Due Date</label>
+              <input style={{ ...s.input, fontSize: 13, padding: "9px 12px" }} type="date" value={form.due} onChange={e => setForm({ ...form, due: e.target.value })} />
+            </div>
+            <div>
+              <label style={{ ...s.lbl, fontSize: 11, marginBottom: 5 }}>Status</label>
+              <select style={{ ...s.input, fontSize: 13, padding: "9px 12px" }} value={form.status} onChange={e => setForm({ ...form, status: e.target.value })}>
+                {["Draft", "Sent", "Paid"].map(x => <option key={x}>{x}</option>)}
+              </select>
+            </div>
           </div>
-        </Card>
+        </Modal>
       )}
 
       <Card style={{}}>
@@ -348,9 +380,9 @@ function TaxSummary({ invoiceTotal }) {
   const CLASS2_WEEKLY = 3.45;
 
   // Editable assumptions
-  const [annualRevenue, setAnnualRevenue] = useState(invoiceTotal > 0 ? invoiceTotal * 12 : 48000);
-  const [expenses, setExpenses] = useState(8000);
-  const [pensionContribs, setPensionContribs] = useState(2400);
+  const [annualRevenue, setAnnualRevenue] = useState(0);
+  const [expenses, setExpenses] = useState(0);
+  const [pensionContribs, setPensionContribs] = useState(0);
 
   const profit = Math.max(0, annualRevenue - expenses - pensionContribs);
   const taxableIncome = Math.max(0, profit - PERSONAL_ALLOWANCE);
@@ -469,16 +501,82 @@ function TaxSummary({ invoiceTotal }) {
       <div style={{ marginTop: 8, fontSize: 9, color: theme.textDim }}>
         ⚠️ These are estimates based on UK 2025/26 rates. Consult a qualified accountant for your actual tax liability.
       </div>
+
+      {/* PDF Download */}
+      <button
+        onClick={() => {
+          const content = `SOLOOS — TAX SUMMARY REPORT
+UK Self Assessment 2025/26
+Generated: ${new Date().toLocaleDateString("en-GB")}
+${"─".repeat(40)}
+
+INCOME & DEDUCTIONS
+─────────────────────────────
+Estimated Annual Revenue:    £${annualRevenue.toLocaleString()}
+Business Expenses:           £${expenses.toLocaleString()}
+Pension Contributions:       £${pensionContribs.toLocaleString()}
+─────────────────────────────
+Taxable Profit:              £${profit.toLocaleString()}
+Personal Allowance:          £12,570
+Taxable Income:              £${taxableIncome.toLocaleString()}
+
+TAX BREAKDOWN
+─────────────────────────────
+Income Tax (${taxBand}):
+  Basic Rate (20%):          £${Math.round(basicTax).toLocaleString()}
+  Higher Rate (40%):         £${Math.round(higherTax).toLocaleString()}
+  Additional Rate (45%):     £${Math.round(additionalTax).toLocaleString()}
+Total Income Tax:            £${Math.round(totalIncomeTax).toLocaleString()}
+
+National Insurance:
+  Class 2:                   £${Math.round(class2).toLocaleString()}
+  Class 4 (lower):           £${Math.round(class4Lower).toLocaleString()}
+  Class 4 (upper):           £${Math.round(class4Upper).toLocaleString()}
+Total NI:                    £${Math.round(totalNI).toLocaleString()}
+
+─────────────────────────────
+TOTAL TAX BILL:              £${Math.round(totalTax).toLocaleString()}
+Effective Tax Rate:          ${effectiveRate}%
+─────────────────────────────
+
+MONTHLY SAVINGS PLAN
+─────────────────────────────
+Exact amount to set aside:   £${monthlySet.toLocaleString()}/month
+25% rule (safe estimate):    £${recommended25.toLocaleString()}/month
+
+KEY HMRC DATES
+─────────────────────────────
+Payment on account 1:        31 January 2026
+Payment on account 2:        31 July 2026
+Self Assessment deadline:    31 January 2027
+
+─────────────────────────────
+⚠ These figures are estimates only.
+Please consult a qualified accountant
+for your actual tax liability.
+─────────────────────────────
+Generated by SoloOS — solo-os1828.vercel.app`;
+
+          const blob = new Blob([content], { type: "text/plain" });
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement("a");
+          a.href = url;
+          a.download = `SoloOS-Tax-Summary-${new Date().getFullYear()}.txt`;
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+          URL.revokeObjectURL(url);
+        }}
+        style={{ ...s.btn("ghost"), width: "100%", marginTop: 10, padding: "9px", fontSize: 11, border: `1px solid ${theme.gold}44`, color: theme.gold, display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}
+      >
+        📥 Download Tax Summary Report
+      </button>
     </Card>
   );
 }
 
 // ── TIME TRACKER ──────────────────────────────────────────
-const initEntries = [
-  { id: 1, project: "Apex Studio – Brand Refresh", hours: 3.5, date: "Today", rate: 120, billed: false },
-  { id: 2, project: "Northgate Media – Edit Suite", hours: 6, date: "Yesterday", rate: 95, billed: true },
-  { id: 3, project: "Lumi Health – Strategy", hours: 2, date: "May 8", rate: 150, billed: false },
-];
+const initEntries = [];
 
 function TimeTracker() {
   const [entries, setEntries] = useState(initEntries);
@@ -486,6 +584,8 @@ function TimeTracker() {
   const [elapsed, setElapsed] = useState(0);
   const [project, setProject] = useState("");
   const [rate, setRate] = useState(120);
+  const [showLog, setShowLog] = useState(false);
+  const [logForm, setLogForm] = useState({ project: "", hours: "", rate: 120 });
   const ref = useRef(null);
 
   useEffect(() => {
@@ -495,12 +595,61 @@ function TimeTracker() {
   }, [running]);
 
   const fmt = t => { const h = Math.floor(t / 3600), m = Math.floor((t % 3600) / 60), sec = t % 60; return `${String(h).padStart(2,"0")}:${String(m).padStart(2,"0")}:${String(sec).padStart(2,"0")}`; };
-  const stop = () => { if (!project) return; setEntries([{ id: Date.now(), project, hours: +(elapsed / 3600).toFixed(2), date: "Today", rate, billed: false }, ...entries]); setRunning(false); setElapsed(0); setProject(""); };
+
+  const stopAndConfirm = () => {
+    if (!project) return;
+    setRunning(false);
+    setLogForm({ project, hours: (elapsed / 3600).toFixed(2), rate });
+    setShowLog(true);
+  };
+
+  const confirmLog = () => {
+    setEntries([{ id: Date.now(), project: logForm.project, hours: +logForm.hours, date: "Today", rate: +logForm.rate, billed: false }, ...entries]);
+    setElapsed(0); setProject(""); setShowLog(false);
+  };
+
+  // Manual log (no timer)
+  const [showManual, setShowManual] = useState(false);
+  const [manualForm, setManualForm] = useState({ project: "", hours: "", rate: 120, date: "Today" });
+  const saveManual = () => {
+    if (!manualForm.project || !manualForm.hours) return;
+    setEntries([{ id: Date.now(), ...manualForm, hours: +manualForm.hours, rate: +manualForm.rate, billed: false }, ...entries]);
+    setManualForm({ project: "", hours: "", rate: 120, date: "Today" });
+    setShowManual(false);
+  };
+
   const unbilled = entries.filter(e => !e.billed).reduce((sum, e) => sum + e.hours * e.rate, 0);
 
   return (
     <div style={s.page}>
-      <div><div style={s.ptitle}>Time Tracker</div><div style={s.psub}>Track billable hours and know your earned value</div></div>
+      {showLog && (
+        <Modal title="⏹ Log Time Entry" subtitle="Confirm or adjust the details before saving" accentColor={theme.green} onClose={() => { setShowLog(false); setRunning(false); }} onComplete={confirmLog} completeLabel="✅ Save Entry">
+          <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+            <div><label style={{ ...s.lbl, fontSize: 11, marginBottom: 5 }}>Project</label><input style={{ ...s.input, fontSize: 13, padding: "9px 12px" }} value={logForm.project} onChange={e => setLogForm({ ...logForm, project: e.target.value })} /></div>
+            <div><label style={{ ...s.lbl, fontSize: 11, marginBottom: 5 }}>Hours Logged</label><input style={{ ...s.input, fontSize: 13, padding: "9px 12px" }} type="number" value={logForm.hours} onChange={e => setLogForm({ ...logForm, hours: e.target.value })} /></div>
+            <div><label style={{ ...s.lbl, fontSize: 11, marginBottom: 5 }}>Rate (£/hr)</label><input style={{ ...s.input, fontSize: 13, padding: "9px 12px" }} type="number" value={logForm.rate} onChange={e => setLogForm({ ...logForm, rate: e.target.value })} /></div>
+            <div style={{ padding: "10px 14px", background: theme.green + "11", borderRadius: 9, border: `1px solid ${theme.green}33`, textAlign: "center" }}>
+              <div style={{ fontSize: 11, color: theme.textMuted, marginBottom: 2 }}>Total value</div>
+              <div style={{ fontSize: 22, fontWeight: 800, fontFamily: "'Syne', sans-serif", color: theme.green }}>£{(+logForm.hours * +logForm.rate).toFixed(0)}</div>
+            </div>
+          </div>
+        </Modal>
+      )}
+      {showManual && (
+        <Modal title="✏️ Log Time Manually" subtitle="Add a time entry without using the timer" accentColor={theme.accent} onClose={() => setShowManual(false)} onComplete={saveManual} completeLabel="✅ Save Entry">
+          <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+            <div><label style={{ ...s.lbl, fontSize: 11, marginBottom: 5 }}>Project</label><input style={{ ...s.input, fontSize: 13, padding: "9px 12px" }} value={manualForm.project} onChange={e => setManualForm({ ...manualForm, project: e.target.value })} placeholder="What did you work on?" autoFocus /></div>
+            <div><label style={{ ...s.lbl, fontSize: 11, marginBottom: 5 }}>Hours</label><input style={{ ...s.input, fontSize: 13, padding: "9px 12px" }} type="number" value={manualForm.hours} onChange={e => setManualForm({ ...manualForm, hours: e.target.value })} placeholder="e.g. 2.5" /></div>
+            <div><label style={{ ...s.lbl, fontSize: 11, marginBottom: 5 }}>Rate (£/hr)</label><input style={{ ...s.input, fontSize: 13, padding: "9px 12px" }} type="number" value={manualForm.rate} onChange={e => setManualForm({ ...manualForm, rate: e.target.value })} /></div>
+            <div><label style={{ ...s.lbl, fontSize: 11, marginBottom: 5 }}>Date</label><input style={{ ...s.input, fontSize: 13, padding: "9px 12px" }} value={manualForm.date} onChange={e => setManualForm({ ...manualForm, date: e.target.value })} placeholder="e.g. Today, Yesterday" /></div>
+          </div>
+        </Modal>
+      )}
+
+      <div style={{ ...s.row, justifyContent: "space-between" }}>
+        <div><div style={s.ptitle}>Time Tracker</div><div style={s.psub}>Track billable hours and know your earned value</div></div>
+        <button style={s.btn("ghost")} onClick={() => setShowManual(true)}>+ Log Manually</button>
+      </div>
 
       <div style={{ display: "grid", gridTemplateColumns: "280px 1fr", gap: 9 }}>
         <div style={{ display: "flex", flexDirection: "column", gap: 9 }}>
@@ -514,14 +663,14 @@ function TimeTracker() {
             <div style={{ display: "flex", gap: 6 }}>
               {!running
                 ? <button style={{ ...s.btn("primary"), flex: 1 }} onClick={() => setRunning(true)}>▶ Start</button>
-                : <><button style={{ ...s.btn("ghost"), flex: 1 }} onClick={() => setRunning(false)}>⏸ Pause</button><button style={{ ...s.btn("primary"), flex: 1, background: theme.green }} onClick={stop}>⏹ Log</button></>}
+                : <><button style={{ ...s.btn("ghost"), flex: 1 }} onClick={() => setRunning(false)}>⏸ Pause</button><button style={{ ...s.btn("primary"), flex: 1, background: theme.green }} onClick={stopAndConfirm}>⏹ Log</button></>}
             </div>
           </Card>
           <Card accent={theme.gold} style={{}}>
             <div style={s.ct}>💸 Unbilled Value</div>
             <div style={{ ...s.stat, color: theme.gold }}>£{unbilled.toFixed(0)}</div>
             <div style={{ ...s.sub, marginBottom: 9 }}>{entries.filter(e => !e.billed).length} unbilled entries</div>
-            {[{ day: "Mon", h: 5.5 }, { day: "Tue", h: 7 }, { day: "Wed", h: 3 }, { day: "Thu", h: 6.5 }, { day: "Fri", h: 4 }].map(d => (
+            {[{ day: "Mon", h: 0 }, { day: "Tue", h: 0 }, { day: "Wed", h: 0 }, { day: "Thu", h: 0 }, { day: "Fri", h: 0 }].map(d => (
               <div key={d.day} style={{ ...s.row, marginBottom: 5 }}>
                 <span style={{ fontSize: 10, color: theme.textMuted, width: 24 }}>{d.day}</span>
                 <div style={{}}><Bar pct={(d.h / 8) * 100} color={theme.gold} /></div>
@@ -555,12 +704,7 @@ function TimeTracker() {
 }
 
 // ── CRM ───────────────────────────────────────────────────
-const initClients = [
-  { id: 1, name: "Apex Studio", contact: "Mia Chen", value: 4800, stage: "Active", last: "2 days ago", tags: ["Design"] },
-  { id: 2, name: "Northgate Media", contact: "Tom Briggs", value: 2200, stage: "Proposal", last: "1 week ago", tags: ["Video"] },
-  { id: 3, name: "Lumi Health", contact: "Priya Nair", value: 6500, stage: "Lead", last: "3 days ago", tags: ["Brand"] },
-  { id: 4, name: "Volta Finance", contact: "James Wu", value: 1800, stage: "Completed", last: "1 month ago", tags: ["Web"] },
-];
+const initClients = [];
 
 function CRM() {
   const [clients, setClients] = useState(initClients);
@@ -588,15 +732,45 @@ function CRM() {
       </div>
 
       {adding && (
-        <Card accent={theme.green}>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr auto", gap: 7, alignItems: "end" }}>
-            <div><label style={s.lbl}>Company</label><input style={s.input} value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} placeholder="Name" /></div>
-            <div><label style={s.lbl}>Contact</label><input style={s.input} value={form.contact} onChange={e => setForm({ ...form, contact: e.target.value })} /></div>
-            <div><label style={s.lbl}>Value (£)</label><input style={s.input} type="number" value={form.value} onChange={e => setForm({ ...form, value: e.target.value })} /></div>
-            <div><label style={s.lbl}>Stage</label><select style={s.input} value={form.stage} onChange={e => setForm({ ...form, stage: e.target.value })}>{["Lead","Proposal","Active","Completed"].map(x => <option key={x}>{x}</option>)}</select></div>
-            <div style={{ display: "flex", gap: 5 }}><button style={s.btn("ghost")} onClick={() => setAdding(false)}>✕</button><button style={s.btn("primary")} onClick={add}>Add</button></div>
+        <Modal
+          title="👤 Add New Client"
+          subtitle="Enter the client details to add them to your pipeline"
+          accentColor={theme.green}
+          onClose={() => setAdding(false)}
+          onComplete={add}
+          completeLabel="✅ Add Client"
+        >
+          <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+            {[
+              { label: "Company Name", key: "name", placeholder: "e.g. Apex Studio", type: "text" },
+              { label: "Contact Name", key: "contact", placeholder: "e.g. Jane Smith", type: "text" },
+              { label: "Deal Value (£)", key: "value", placeholder: "0", type: "number" },
+            ].map(f => (
+              <div key={f.key}>
+                <label style={{ ...s.lbl, fontSize: 11, marginBottom: 5 }}>{f.label}</label>
+                <input style={{ ...s.input, fontSize: 13, padding: "9px 12px" }} type={f.type} value={form[f.key]} onChange={e => setForm({ ...form, [f.key]: e.target.value })} placeholder={f.placeholder} />
+              </div>
+            ))}
+            <div>
+              <label style={{ ...s.lbl, fontSize: 11, marginBottom: 5 }}>Stage</label>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+                {["Lead", "Proposal", "Active", "Completed"].map(stage => (
+                  <button key={stage} onClick={() => setForm({ ...form, stage })} style={{
+                    padding: "10px", borderRadius: 8, cursor: "pointer", fontSize: 12, fontWeight: form.stage === stage ? 700 : 400,
+                    fontFamily: "'DM Sans', sans-serif", transition: "all 0.15s",
+                    background: form.stage === stage ? theme.green + "22" : theme.bg,
+                    color: form.stage === stage ? theme.green : theme.textMuted,
+                    border: `1px solid ${form.stage === stage ? theme.green + "66" : theme.border}`,
+                  }}>{stage}</button>
+                ))}
+              </div>
+            </div>
+            <div>
+              <label style={{ ...s.lbl, fontSize: 11, marginBottom: 5 }}>Tags (comma separated)</label>
+              <input style={{ ...s.input, fontSize: 13, padding: "9px 12px" }} value={form.tags} onChange={e => setForm({ ...form, tags: e.target.value })} placeholder="e.g. Design, Web, Brand" />
+            </div>
           </div>
-        </Card>
+        </Modal>
       )}
 
       <Card style={{}}>
@@ -623,12 +797,7 @@ function CRM() {
 
 // ── PROPOSALS ─────────────────────────────────────────────
 function Proposals() {
-  const [proposals, setProposals] = useState([
-    { id: 1, client: "Lumi Health",     email: "priya@lumihealth.co.uk",   title: "Brand Identity Package",   value: 4800, sent: "May 5",  status: "Pending", win: 72 },
-    { id: 2, client: "Northgate Media", email: "tom@northgatemedia.co.uk", title: "Monthly Retainer – Video", value: 2200, sent: "Apr 28", status: "Viewed",  win: 58 },
-    { id: 3, client: "Apex Studio",     email: "mia@apexstudio.co.uk",     title: "Website Redesign",         value: 6500, sent: "Apr 15", status: "Won",     win: 100 },
-    { id: 4, client: "Volta Finance",   email: "james@voltafinance.co.uk", title: "Explainer Animation",      value: 3100, sent: "Apr 2",  status: "Lost",    win: 0 },
-  ]);
+  const [proposals, setProposals] = useState([]);
   const [view, setView] = useState("list"); // list | compose | sent
   const [sentMsg, setSentMsg] = useState("");
   const [bodyTouched, setBodyTouched] = useState(false);
@@ -669,7 +838,14 @@ ${f.senderEmail || "[Your Email]"}`;
 
   const sendEmail = () => {
     if (!form.client || !form.email) return;
-    window.open(`mailto:${form.email}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(editedBody)}`, "_blank");
+    const mailtoLink = `mailto:${form.email}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(editedBody)}`;
+    const a = document.createElement("a");
+    a.href = mailtoLink;
+    a.target = "_blank";
+    a.rel = "noopener noreferrer";
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
     setProposals(p => [{ id: Date.now(), client: form.client, email: form.email, title: form.title || "Untitled", value: +form.value || 0, sent: "Today", status: "Pending", win: 50 }, ...p]);
     setSentMsg(`Proposal to ${form.client} opened in your email app ✅`);
     setView("sent");
@@ -1323,28 +1499,10 @@ function AIProposals() {
 
 // ── CASH FLOW FORECAST ────────────────────────────────────
 function CashFlow() {
-  const [balance, setBalance] = useState(4200);
+  const [balance, setBalance] = useState(0);
   const [showAdd, setShowAdd] = useState(false);
   const [newItem, setNewItem] = useState({ label: "", amount: "", month: "Jun", type: "income" });
-
-  const [items, setItems] = useState([
-    // Income
-    { id: 1, label: "Apex Studio — INV-041", amount: 2400, month: "May", type: "income", confirmed: true },
-    { id: 2, label: "Lumi Health — Retainer", amount: 1800, month: "May", type: "income", confirmed: false },
-    { id: 3, label: "Northgate Media — INV-039", amount: 950, month: "Jun", type: "income", confirmed: false },
-    { id: 4, label: "New website project (est.)", amount: 3200, month: "Jun", type: "income", confirmed: false },
-    { id: 5, label: "Retainer renewal", amount: 1800, month: "Jul", type: "income", confirmed: false },
-    { id: 6, label: "Design project (pipeline)", amount: 2600, month: "Jul", type: "income", confirmed: false },
-    // Expenses
-    { id: 7, label: "Adobe Creative Cloud", amount: -58, month: "May", type: "expense", confirmed: true },
-    { id: 8, label: "Office rent", amount: -450, month: "May", type: "expense", confirmed: true },
-    { id: 9, label: "Tax jar (25%)", amount: -1100, month: "May", type: "expense", confirmed: true },
-    { id: 10, label: "Accountant fee", amount: -120, month: "Jun", type: "expense", confirmed: true },
-    { id: 11, label: "Software subscriptions", amount: -85, month: "Jun", type: "expense", confirmed: true },
-    { id: 12, label: "Tax jar (est.)", amount: -1050, month: "Jun", type: "expense", confirmed: false },
-    { id: 13, label: "Office rent", amount: -450, month: "Jul", type: "expense", confirmed: true },
-    { id: 14, label: "Tax jar (est.)", amount: -1100, month: "Jul", type: "expense", confirmed: false },
-  ]);
+  const [items, setItems] = useState([]);
 
   const months = ["May", "Jun", "Jul"];
   const monthColors = [theme.blue, theme.accent, theme.green];
@@ -1420,17 +1578,55 @@ function CashFlow() {
         )}
       </Card>
 
-      {/* Add item form */}
+      {/* Add item modal */}
       {showAdd && (
-        <Card accent={theme.accent}>
-          <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr 1fr 1fr auto", gap: 8, alignItems: "end" }}>
-            <div><label style={s.lbl}>Description</label><input style={s.input} value={newItem.label} onChange={e => setNewItem({ ...newItem, label: e.target.value })} placeholder="e.g. Invoice payment" /></div>
-            <div><label style={s.lbl}>Amount (£)</label><input style={s.input} type="number" value={newItem.amount} onChange={e => setNewItem({ ...newItem, amount: e.target.value })} /></div>
-            <div><label style={s.lbl}>Month</label><select style={s.input} value={newItem.month} onChange={e => setNewItem({ ...newItem, month: e.target.value })}>{months.map(m => <option key={m}>{m}</option>)}</select></div>
-            <div><label style={s.lbl}>Type</label><select style={s.input} value={newItem.type} onChange={e => setNewItem({ ...newItem, type: e.target.value })}><option value="income">Income</option><option value="expense">Expense</option></select></div>
-            <div style={{ display: "flex", gap: 5 }}><button style={s.btn("ghost")} onClick={() => setShowAdd(false)}>✕</button><button style={s.btn("primary")} onClick={addItem}>Add</button></div>
+        <Modal
+          title="💸 Add Cash Flow Item"
+          subtitle="Add an expected income or expense to your forecast"
+          accentColor={theme.blue}
+          onClose={() => setShowAdd(false)}
+          onComplete={addItem}
+          completeLabel="✅ Add to Forecast"
+        >
+          <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+            <div>
+              <label style={{ ...s.lbl, fontSize: 11, marginBottom: 5 }}>Description</label>
+              <input style={{ ...s.input, fontSize: 13, padding: "9px 12px" }} value={newItem.label} onChange={e => setNewItem({ ...newItem, label: e.target.value })} placeholder="e.g. Invoice payment from Apex Studio" autoFocus />
+            </div>
+            <div>
+              <label style={{ ...s.lbl, fontSize: 11, marginBottom: 5 }}>Amount (£)</label>
+              <input style={{ ...s.input, fontSize: 13, padding: "9px 12px" }} type="number" value={newItem.amount} onChange={e => setNewItem({ ...newItem, amount: e.target.value })} placeholder="0" />
+            </div>
+            <div>
+              <label style={{ ...s.lbl, fontSize: 11, marginBottom: 5 }}>Month</label>
+              <div style={{ display: "flex", gap: 8 }}>
+                {months.map(m => (
+                  <button key={m} onClick={() => setNewItem({ ...newItem, month: m })} style={{
+                    flex: 1, padding: "10px", borderRadius: 8, cursor: "pointer", fontSize: 12, fontWeight: newItem.month === m ? 700 : 400,
+                    fontFamily: "'DM Sans', sans-serif", transition: "all 0.15s",
+                    background: newItem.month === m ? theme.blue + "22" : theme.bg,
+                    color: newItem.month === m ? theme.blue : theme.textMuted,
+                    border: `1px solid ${newItem.month === m ? theme.blue + "66" : theme.border}`,
+                  }}>{m}</button>
+                ))}
+              </div>
+            </div>
+            <div>
+              <label style={{ ...s.lbl, fontSize: 11, marginBottom: 5 }}>Type</label>
+              <div style={{ display: "flex", gap: 8 }}>
+                {[{ val: "income", label: "💰 Income", color: theme.green }, { val: "expense", label: "💸 Expense", color: theme.red }].map(t => (
+                  <button key={t.val} onClick={() => setNewItem({ ...newItem, type: t.val })} style={{
+                    flex: 1, padding: "10px", borderRadius: 8, cursor: "pointer", fontSize: 12, fontWeight: newItem.type === t.val ? 700 : 400,
+                    fontFamily: "'DM Sans', sans-serif", transition: "all 0.15s",
+                    background: newItem.type === t.val ? t.color + "22" : theme.bg,
+                    color: newItem.type === t.val ? t.color : theme.textMuted,
+                    border: `1px solid ${newItem.type === t.val ? t.color + "66" : theme.border}`,
+                  }}>{t.label}</button>
+                ))}
+              </div>
+            </div>
           </div>
-        </Card>
+        </Modal>
       )}
 
       {/* Month breakdown */}
@@ -1467,14 +1663,7 @@ function CashFlow() {
 
 // ── EXPENSES & VAT ────────────────────────────────────────
 function Expenses() {
-  const [expenses, setExpenses] = useState([
-    { id: 1, desc: "Adobe Creative Cloud", amount: 58, cat: "Software", date: "1 May", vat: true, receipt: true },
-    { id: 2, desc: "Office rent", amount: 450, cat: "Office", date: "1 May", vat: false, receipt: true },
-    { id: 3, desc: "Petrol — client visit", amount: 34, cat: "Travel", date: "3 May", vat: true, receipt: false },
-    { id: 4, desc: "Laptop stand", amount: 42, cat: "Equipment", date: "6 May", vat: true, receipt: true },
-    { id: 5, desc: "Client lunch — Apex Studio", amount: 67, cat: "Entertainment", date: "8 May", vat: false, receipt: true },
-    { id: 6, desc: "Accountant fee", amount: 120, cat: "Professional", date: "2 May", vat: true, receipt: true },
-  ]);
+  const [expenses, setExpenses] = useState([]);
   const [adding, setAdding] = useState(false);
   const [form, setForm] = useState({ desc: "", amount: "", cat: "Software", vat: false });
 
@@ -1483,7 +1672,7 @@ function Expenses() {
 
   const totalExp = expenses.reduce((s, e) => s + e.amount, 0);
   const vatReclaimable = expenses.filter(e => e.vat).reduce((s, e) => s + e.amount * 0.2, 0);
-  const vatQuarterlyRevenue = 18500;
+  const vatQuarterlyRevenue = 0;
   const vatOwed = vatQuarterlyRevenue * 0.2 - vatReclaimable;
   const vatDue = "31 Jul 2026";
   const daysToVat = Math.round((new Date("2026-07-31") - new Date()) / 86400000);
@@ -1526,22 +1715,52 @@ function Expenses() {
 
       {/* Add expense */}
       {adding && (
-        <Card accent={theme.accent}>
-          <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr 1fr 1fr auto", gap: 8, alignItems: "end" }}>
-            <div><label style={s.lbl}>Description</label><input style={s.input} value={form.desc} onChange={e => setForm({ ...form, desc: e.target.value })} placeholder="What was it for?" /></div>
-            <div><label style={s.lbl}>Amount (£)</label><input style={s.input} type="number" value={form.amount} onChange={e => setForm({ ...form, amount: e.target.value })} /></div>
-            <div><label style={s.lbl}>Category</label><select style={s.input} value={form.cat} onChange={e => setForm({ ...form, cat: e.target.value })}>{cats.map(c => <option key={c}>{c}</option>)}</select></div>
-            <div><label style={s.lbl}>VAT?</label>
-              <div style={{ ...s.row, gap: 6, marginTop: 4 }}>
-                {["Yes", "No"].map(v => (
-                  <button key={v} onClick={() => setForm({ ...form, vat: v === "Yes" })}
-                    style={{ flex: 1, padding: "6px", borderRadius: 6, border: `1px solid ${(v === "Yes") === form.vat ? theme.accent + "88" : theme.border}`, background: (v === "Yes") === form.vat ? theme.accentSoft : "transparent", color: (v === "Yes") === form.vat ? theme.accent : theme.textMuted, cursor: "pointer", fontSize: 11, fontFamily: "'DM Sans', sans-serif" }}>{v}</button>
+        <Modal
+          title="🧾 Log Expense"
+          subtitle="Enter the expense details below"
+          accentColor={theme.red}
+          onClose={() => setAdding(false)}
+          onComplete={addExpense}
+          completeLabel="✅ Save Expense"
+        >
+          <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+            <div>
+              <label style={{ ...s.lbl, fontSize: 11, marginBottom: 5 }}>Description</label>
+              <input style={{ ...s.input, fontSize: 13, padding: "9px 12px" }} value={form.desc} onChange={e => setForm({ ...form, desc: e.target.value })} placeholder="What was it for?" autoFocus />
+            </div>
+            <div>
+              <label style={{ ...s.lbl, fontSize: 11, marginBottom: 5 }}>Amount (£)</label>
+              <input style={{ ...s.input, fontSize: 13, padding: "9px 12px" }} type="number" value={form.amount} onChange={e => setForm({ ...form, amount: e.target.value })} placeholder="0" />
+            </div>
+            <div>
+              <label style={{ ...s.lbl, fontSize: 11, marginBottom: 5 }}>Category</label>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 7 }}>
+                {cats.map(c => (
+                  <button key={c} onClick={() => setForm({ ...form, cat: c })} style={{
+                    padding: "8px", borderRadius: 7, cursor: "pointer", fontSize: 11, fontWeight: form.cat === c ? 700 : 400,
+                    fontFamily: "'DM Sans', sans-serif", transition: "all 0.15s",
+                    background: form.cat === c ? (catColors[c] || theme.accent) + "22" : theme.bg,
+                    color: form.cat === c ? (catColors[c] || theme.accent) : theme.textMuted,
+                    border: `1px solid ${form.cat === c ? (catColors[c] || theme.accent) + "66" : theme.border}`,
+                  }}>{c}</button>
                 ))}
               </div>
             </div>
-            <div style={{ display: "flex", gap: 5 }}><button style={s.btn("ghost")} onClick={() => setAdding(false)}>✕</button><button style={s.btn("primary")} onClick={addExpense}>Save</button></div>
+            <div>
+              <label style={{ ...s.lbl, fontSize: 11, marginBottom: 5 }}>VAT applicable?</label>
+              <div style={{ display: "flex", gap: 8 }}>
+                {["Yes", "No"].map(v => (
+                  <button key={v} onClick={() => setForm({ ...form, vat: v === "Yes" })} style={{
+                    flex: 1, padding: "10px", borderRadius: 8, border: `1px solid ${(v === "Yes") === form.vat ? theme.accent + "88" : theme.border}`,
+                    background: (v === "Yes") === form.vat ? theme.accentSoft : "transparent",
+                    color: (v === "Yes") === form.vat ? theme.accent : theme.textMuted,
+                    cursor: "pointer", fontSize: 12, fontWeight: 600, fontFamily: "'DM Sans', sans-serif",
+                  }}>{v}</button>
+                ))}
+              </div>
+            </div>
           </div>
-        </Card>
+        </Modal>
       )}
 
       <div style={s.g2}>
