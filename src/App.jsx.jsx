@@ -1,5 +1,21 @@
 import { useState, useEffect, useRef } from "react";
 
+// ── PERSISTENT STORAGE HOOK ───────────────────────────────
+function useLocalStorage(key, initialValue) {
+  const [value, setValue] = useState(() => {
+    try {
+      const stored = localStorage.getItem(key);
+      return stored ? JSON.parse(stored) : initialValue;
+    } catch { return initialValue; }
+  });
+
+  useEffect(() => {
+    try { localStorage.setItem(key, JSON.stringify(value)); } catch {}
+  }, [key, value]);
+
+  return [value, setValue];
+}
+
 const theme = {
   bg: "#0a0a0f", surface: "#12121a", border: "#2a2a3d",
   accent: "#7c5cfc", accentSoft: "#7c5cfc22",
@@ -234,171 +250,135 @@ function Dashboard() {
 }
 
 // ── SESSION MANAGER ───────────────────────────────────────
-// Uses a global event so components can broadcast their state for saving
-const SESSION_KEY = "soloos_session_v1";
+const SOLOOS_KEYS = [
+  "soloos_invoices", "soloos_timeentries", "soloos_clients",
+  "soloos_proposals", "soloos_cashflow_balance", "soloos_cashflow_items",
+  "soloos_expenses"
+];
 
 function SessionManager() {
-  const [lastSaved, setLastSaved] = useState(null);
-  const [loadMsg, setLoadMsg] = useState("");
   const [showConfirmClear, setShowConfirmClear] = useState(false);
+  const [msg, setMsg] = useState("");
 
-  // Check if a saved session exists
-  useEffect(() => {
-    try {
-      const saved = localStorage.getItem(SESSION_KEY);
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        setLastSaved(parsed._savedAt || null);
-      }
-    } catch {}
-  }, []);
+  const showMsg = (text) => { setMsg(text); setTimeout(() => setMsg(""), 3500); };
 
-  const saveSession = () => {
+  // Count saved items
+  const getSummary = () => {
     try {
-      // Collect all data from sessionStorage (components write there on change)
-      const session = {
-        _savedAt: new Date().toISOString(),
-        _version: "1.0",
-      };
-      // Gather any component data stored in sessionStorage
-      for (let i = 0; i < sessionStorage.length; i++) {
-        const key = sessionStorage.key(i);
-        if (key && key.startsWith("soloos_")) {
-          try { session[key] = JSON.parse(sessionStorage.getItem(key)); } catch {}
-        }
-      }
-      localStorage.setItem(SESSION_KEY, JSON.stringify(session));
-      setLastSaved(new Date().toISOString());
-      setLoadMsg("✅ Session saved successfully!");
-      setTimeout(() => setLoadMsg(""), 3000);
-    } catch {
-      setLoadMsg("❌ Could not save — storage may be unavailable.");
-      setTimeout(() => setLoadMsg(""), 3000);
-    }
+      const invoices = JSON.parse(localStorage.getItem("soloos_invoices") || "[]");
+      const clients = JSON.parse(localStorage.getItem("soloos_clients") || "[]");
+      const entries = JSON.parse(localStorage.getItem("soloos_timeentries") || "[]");
+      const expenses = JSON.parse(localStorage.getItem("soloos_expenses") || "[]");
+      const proposals = JSON.parse(localStorage.getItem("soloos_proposals") || "[]");
+      return { invoices: invoices.length, clients: clients.length, entries: entries.length, expenses: expenses.length, proposals: proposals.length };
+    } catch { return null; }
   };
 
-  const loadSession = () => {
-    try {
-      const saved = localStorage.getItem(SESSION_KEY);
-      if (!saved) { setLoadMsg("⚠️ No saved session found."); setTimeout(() => setLoadMsg(""), 3000); return; }
-      const parsed = JSON.parse(saved);
-      // Restore into sessionStorage so components can read on next render
-      Object.keys(parsed).forEach(key => {
-        if (key.startsWith("soloos_")) {
-          sessionStorage.setItem(key, JSON.stringify(parsed[key]));
-        }
-      });
-      setLoadMsg("✅ Session loaded! Refresh the page to see your data.");
-      setTimeout(() => setLoadMsg(""), 5000);
-    } catch {
-      setLoadMsg("❌ Could not load session.");
-      setTimeout(() => setLoadMsg(""), 3000);
-    }
-  };
+  const hasData = SOLOOS_KEYS.some(k => {
+    try { const v = localStorage.getItem(k); return v && JSON.parse(v) && (Array.isArray(JSON.parse(v)) ? JSON.parse(v).length > 0 : JSON.parse(v) !== 0); } catch { return false; }
+  });
 
-  const clearSession = () => {
-    try {
-      localStorage.removeItem(SESSION_KEY);
-      sessionStorage.clear();
-      setLastSaved(null);
-      setShowConfirmClear(false);
-      setLoadMsg("✅ Session cleared. Refresh to start fresh.");
-      setTimeout(() => setLoadMsg(""), 4000);
-    } catch {}
+  const clearAll = () => {
+    SOLOOS_KEYS.forEach(k => localStorage.removeItem(k));
+    setShowConfirmClear(false);
+    showMsg("✅ All data cleared. Refresh the page to start fresh.");
   };
 
   const downloadBackup = () => {
-    const now = new Date().toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" });
-    let sessionData = "No saved session found.";
-    try {
-      const saved = localStorage.getItem(SESSION_KEY);
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        sessionData = JSON.stringify(parsed, null, 2);
-      }
-    } catch {}
+    const now = new Date().toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric", hour: "2-digit", minute: "2-digit" });
+    const summary = getSummary();
+    let lines = [`SOLOOS — DATA BACKUP`, `Generated: ${now}`, "─".repeat(44), ""];
+    if (summary) {
+      lines.push("DATA SUMMARY", "─".repeat(44));
+      lines.push(`Invoices:      ${summary.invoices}`);
+      lines.push(`Clients:       ${summary.clients}`);
+      lines.push(`Time Entries:  ${summary.entries}`);
+      lines.push(`Expenses:      ${summary.expenses}`);
+      lines.push(`Proposals:     ${summary.proposals}`);
+      lines.push("");
+    }
+    lines.push("RAW DATA", "─".repeat(44));
+    SOLOOS_KEYS.forEach(k => {
+      try {
+        const v = localStorage.getItem(k);
+        if (v) lines.push(`\n[${k}]\n${JSON.stringify(JSON.parse(v), null, 2)}`);
+      } catch {}
+    });
+    lines.push("", "─".repeat(44));
+    lines.push("SOLOOS — UK Sole Trader App");
+    lines.push("https://solo-os1828.vercel.app/");
+    lines.push("© 2026 SoloOS. All rights reserved.");
 
-    const content = `SOLOOS — DATA BACKUP
-Generated: ${now}
-${"─".repeat(44)}
-
-⚠️  IMPORTANT: SoloOS stores data in localStorage.
-Data may be lost if you clear browser storage.
-Keep this file as a backup.
-
-${"─".repeat(44)}
-SAVED SESSION DATA
-${"─".repeat(44)}
-${sessionData}
-
-${"─".repeat(44)}
-TO RESTORE: Copy this file somewhere safe.
-Contact support if you need help recovering data.
-
-${"─".repeat(44)}
-SOLOOS — UK Sole Trader App
-https://solo-os1828.vercel.app/
-© 2026 SoloOS. All rights reserved.`;
-
-    const blob = new Blob([content], { type: "text/plain" });
+    const blob = new Blob([lines.join("\n")], { type: "text/plain" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
     a.download = `SoloOS-Backup-${new Date().toISOString().slice(0,10)}.txt`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
     URL.revokeObjectURL(url);
+    showMsg("✅ Backup downloaded!");
   };
 
-  const fmtDate = (iso) => {
-    if (!iso) return null;
-    try {
-      return new Date(iso).toLocaleString("en-GB", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
-    } catch { return iso; }
-  };
+  const summary = getSummary();
 
   return (
     <div style={{ margin: "8px 0 4px 0", background: theme.surface, borderRadius: 12, border: `1px solid ${theme.border}`, padding: "12px 14px" }}>
-      <div style={{ ...s.ct, marginBottom: 8, justifyContent: "space-between" }}>
-        <span>💾 Session & Backup</span>
-        {lastSaved && <span style={{ fontSize: 9, color: theme.green, textTransform: "none", letterSpacing: 0, fontWeight: 400 }}>Last saved: {fmtDate(lastSaved)}</span>}
-      </div>
+      <div style={{ ...s.ct, marginBottom: 8 }}>💾 Data & Backup</div>
 
-      {/* Message */}
-      {loadMsg && (
-        <div style={{ fontSize: 11, color: loadMsg.startsWith("✅") ? theme.green : loadMsg.startsWith("⚠️") ? theme.gold : theme.red, marginBottom: 8, padding: "6px 10px", background: theme.bg, borderRadius: 7 }}>
-          {loadMsg}
+      {/* Data summary */}
+      {summary && hasData && (
+        <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 8 }}>
+          {[
+            { label: "Invoices", count: summary.invoices, color: theme.accent },
+            { label: "Clients", count: summary.clients, color: theme.green },
+            { label: "Time", count: summary.entries, color: theme.gold },
+            { label: "Expenses", count: summary.expenses, color: theme.red },
+            { label: "Proposals", count: summary.proposals, color: theme.blue },
+          ].map((item, i) => item.count > 0 && (
+            <div key={i} style={{ padding: "3px 9px", background: item.color + "15", border: `1px solid ${item.color}33`, borderRadius: 100, fontSize: 10, color: item.color }}>
+              {item.label}: {item.count}
+            </div>
+          ))}
         </div>
       )}
 
-      {/* Main buttons */}
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 7, marginBottom: 7 }}>
-        <button onClick={saveSession} style={{ ...s.btn("primary"), padding: "9px", fontSize: 11, display: "flex", alignItems: "center", justifyContent: "center", gap: 5 }}>
-          💾 Save Session
-        </button>
-        <button onClick={loadSession} style={{ ...s.btn("ghost"), padding: "9px", fontSize: 11, border: `1px solid ${theme.green}55`, color: theme.green, display: "flex", alignItems: "center", justifyContent: "center", gap: 5 }}>
-          📂 Load Session
-        </button>
+      {!hasData && (
+        <div style={{ fontSize: 10, color: theme.textMuted, marginBottom: 8, padding: "6px 10px", background: theme.bg, borderRadius: 7 }}>
+          No data saved yet. Start adding invoices, clients and expenses — they save automatically!
+        </div>
+      )}
+
+      {/* Status message */}
+      {msg && (
+        <div style={{ fontSize: 11, color: msg.startsWith("✅") ? theme.green : theme.red, marginBottom: 8, padding: "6px 10px", background: theme.bg, borderRadius: 7 }}>
+          {msg}
+        </div>
+      )}
+
+      {/* Auto-save notice */}
+      <div style={{ display: "flex", alignItems: "center", gap: 6, padding: "6px 10px", background: theme.green + "11", border: `1px solid ${theme.green}33`, borderRadius: 7, marginBottom: 8 }}>
+        <span style={{ fontSize: 12, color: theme.green }}>✅</span>
+        <span style={{ fontSize: 10, color: theme.green, fontWeight: 600 }}>Auto-save is ON — your data saves automatically as you work</span>
       </div>
 
+      {/* Buttons */}
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 7 }}>
-        <button onClick={downloadBackup} style={{ ...s.btn("ghost"), padding: "9px", fontSize: 11, border: `1px solid ${theme.gold}44`, color: theme.gold, display: "flex", alignItems: "center", justifyContent: "center", gap: 5 }}>
+        <button onClick={downloadBackup} style={{ ...s.btn("ghost"), padding: "9px", fontSize: 11, border: `1px solid ${theme.gold}44`, color: theme.gold }}>
           📥 Download Backup
         </button>
         {!showConfirmClear
-          ? <button onClick={() => setShowConfirmClear(true)} style={{ ...s.btn("ghost"), padding: "9px", fontSize: 11, border: `1px solid ${theme.red}44`, color: theme.red, display: "flex", alignItems: "center", justifyContent: "center", gap: 5 }}>
-              🗑 Clear Session
+          ? <button onClick={() => setShowConfirmClear(true)} style={{ ...s.btn("ghost"), padding: "9px", fontSize: 11, border: `1px solid ${theme.red}44`, color: theme.red }}>
+              🗑 Clear All Data
             </button>
           : <div style={{ display: "flex", gap: 5 }}>
-              <button onClick={clearSession} style={{ ...s.btn("ghost"), flex: 1, padding: "9px", fontSize: 10, border: `1px solid ${theme.red}66`, color: theme.red }}>Yes, clear</button>
+              <button onClick={clearAll} style={{ ...s.btn("ghost"), flex: 1, padding: "9px", fontSize: 10, border: `1px solid ${theme.red}66`, color: theme.red }}>Yes, clear</button>
               <button onClick={() => setShowConfirmClear(false)} style={{ ...s.btn("ghost"), flex: 1, padding: "9px", fontSize: 10 }}>Cancel</button>
             </div>
         }
       </div>
 
       <div style={{ fontSize: 9, color: theme.textDim, marginTop: 8, lineHeight: 1.5 }}>
-        Save stores your session in this browser. Load restores it. Download backup saves a file to your device. Data is browser-specific — not synced across devices.
+        Data is saved automatically in this browser. Download a backup regularly. Data is device-specific and not synced across devices.
       </div>
     </div>
   );
@@ -459,7 +439,7 @@ function TinyChart() {
 const initInvoices = [];
 
 function Invoicing() {
-  const [invoices, setInvoices] = useState(initInvoices);
+  const [invoices, setInvoices] = useLocalStorage("soloos_invoices", initInvoices);
   const [creating, setCreating] = useState(false);
   const [form, setForm] = useState({ client: "", amount: "", due: "", status: "Draft" });
   const scol = { Paid: theme.green, Sent: theme.blue, Overdue: theme.red, Draft: theme.textMuted };
@@ -753,7 +733,7 @@ Generated by SoloOS — solo-os1828.vercel.app`;
 const initEntries = [];
 
 function TimeTracker() {
-  const [entries, setEntries] = useState(initEntries);
+  const [entries, setEntries] = useLocalStorage("soloos_timeentries", initEntries);
   const [running, setRunning] = useState(false);
   const [elapsed, setElapsed] = useState(0);
   const [project, setProject] = useState("");
@@ -881,7 +861,7 @@ function TimeTracker() {
 const initClients = [];
 
 function CRM() {
-  const [clients, setClients] = useState(initClients);
+  const [clients, setClients] = useLocalStorage("soloos_clients", initClients);
   const [adding, setAdding] = useState(false);
   const [form, setForm] = useState({ name: "", contact: "", value: "", stage: "Lead", tags: "" });
   const scol = { Active: theme.green, Proposal: theme.blue, Lead: theme.gold, Completed: theme.textMuted };
@@ -971,7 +951,7 @@ function CRM() {
 
 // ── PROPOSALS ─────────────────────────────────────────────
 function Proposals() {
-  const [proposals, setProposals] = useState([]);
+  const [proposals, setProposals] = useLocalStorage("soloos_proposals", []);
   const [view, setView] = useState("list"); // list | compose | sent
   const [sentMsg, setSentMsg] = useState("");
   const [bodyTouched, setBodyTouched] = useState(false);
@@ -1673,10 +1653,10 @@ function AIProposals() {
 
 // ── CASH FLOW FORECAST ────────────────────────────────────
 function CashFlow() {
-  const [balance, setBalance] = useState(0);
+  const [balance, setBalance] = useLocalStorage("soloos_cashflow_balance", 0);
   const [showAdd, setShowAdd] = useState(false);
   const [newItem, setNewItem] = useState({ label: "", amount: "", month: "Jun", type: "income" });
-  const [items, setItems] = useState([]);
+  const [items, setItems] = useLocalStorage("soloos_cashflow_items", []);
 
   const months = ["May", "Jun", "Jul"];
   const monthColors = [theme.blue, theme.accent, theme.green];
@@ -1837,7 +1817,7 @@ function CashFlow() {
 
 // ── EXPENSES & VAT ────────────────────────────────────────
 function Expenses() {
-  const [expenses, setExpenses] = useState([]);
+  const [expenses, setExpenses] = useLocalStorage("soloos_expenses", []);
   const [adding, setAdding] = useState(false);
   const [form, setForm] = useState({ desc: "", amount: "", cat: "Software", vat: false });
 
