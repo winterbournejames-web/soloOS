@@ -226,6 +226,70 @@ function Dashboard() {
           <TinyChart />
         </Card>
       </div>
+
+      {/* Data Backup Summary */}
+      <DataBackup />
+    </div>
+  );
+}
+
+function DataBackup() {
+  const download = () => {
+    const now = new Date().toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" });
+    const content = `SOLOOS — DATA BACKUP SUMMARY
+Generated: ${now}
+${"─".repeat(44)}
+
+⚠️  IMPORTANT: SoloOS stores data in your browser
+session only. Data may be lost if you clear your
+browser cache or reinstall the app. Please keep
+this file as a backup and regenerate it regularly.
+
+${"─".repeat(44)}
+DASHBOARD SNAPSHOT
+${"─".repeat(44)}
+Monthly Target:        £8,000
+Current Earned:        £0
+Tax Jar Rate:          25%
+Self Assessment Due:   31 Jan 2027
+
+${"─".repeat(44)}
+HOW TO RESTORE YOUR DATA
+${"─".repeat(44)}
+SoloOS does not yet have cloud sync. To protect
+your data:
+
+1. Download this summary regularly
+2. Take screenshots of each page
+3. Keep a note of your key figures
+
+Full cloud backup is coming in a future update.
+
+${"─".repeat(44)}
+SOLOOS — UK Sole Trader App
+https://solo-os1828.vercel.app/
+© 2026 SoloOS. All rights reserved.`;
+
+    const blob = new Blob([content], { type: "text/plain" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `SoloOS-Backup-${new Date().toISOString().slice(0,10)}.txt`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
+
+  return (
+    <div style={{ margin: "8px 0 4px 0", padding: "10px 13px", background: theme.surface, borderRadius: 10, border: `1px solid ${theme.border}` }}>
+      <div style={{ ...s.ct, marginBottom: 6 }}>💾 Data Backup</div>
+      <div style={{ fontSize: 10, color: theme.textMuted, marginBottom: 8, lineHeight: 1.5 }}>
+        SoloOS stores data in your session only. Download a summary regularly to avoid losing your data.
+      </div>
+      <button onClick={download} style={{ ...s.btn("ghost"), width: "100%", border: `1px solid ${theme.accent}44`, color: theme.accent, fontSize: 11, padding: "7px" }}>
+        📥 Download Data Backup Summary
+      </button>
     </div>
   );
 }
@@ -1866,6 +1930,9 @@ export default function App() {
   const [tab, setTab] = useState("dashboard");
   const navRef = useRef(null);
   const pageRef = useRef(null);
+  const [agreed, setAgreed] = useState(false);
+  const [checked, setChecked] = useState(false);
+  const [showDisclaimer, setShowDisclaimer] = useState(true);
 
   useEffect(() => {
     const l1 = document.createElement("link"); l1.rel = "preconnect"; l1.href = "https://fonts.googleapis.com"; document.head.appendChild(l1);
@@ -1892,6 +1959,91 @@ export default function App() {
 
   return (
     <div style={s.app}>
+
+      {/* ── DISCLAIMER POPUP ── */}
+      {showDisclaimer && !agreed && (
+        <div style={{
+          position: "fixed", inset: 0, zIndex: 2000,
+          background: "rgba(0,0,0,0.85)",
+          display: "flex", alignItems: "center", justifyContent: "center",
+          padding: 20, boxSizing: "border-box",
+        }}>
+          <div style={{
+            background: theme.surface, borderRadius: 16,
+            border: `1px solid ${theme.accent}55`,
+            boxShadow: `0 0 40px ${theme.accent}22`,
+            width: "100%", maxWidth: 480,
+            padding: "28px 28px 24px",
+          }}>
+            {/* Header */}
+            <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 16 }}>
+              <div style={{ fontSize: 32 }}>⚠️</div>
+              <div>
+                <div style={{ fontFamily: "'Syne', sans-serif", fontWeight: 800, fontSize: 18, color: theme.text }}>Before you get started</div>
+                <div style={{ fontSize: 11, color: theme.textMuted, marginTop: 2 }}>Please read and agree to continue</div>
+              </div>
+            </div>
+
+            <hr style={s.hr} />
+
+            {/* Disclaimer text */}
+            <div style={{ fontSize: 12, color: theme.text, lineHeight: 1.7, marginBottom: 16 }}>
+              <p style={{ marginBottom: 10 }}>
+                <strong style={{ color: theme.gold }}>Data Storage:</strong> SoloOS currently stores your data within your browser session only. This means your data <strong>may be lost</strong> if you clear your browser cache, reinstall the app, or switch devices.
+              </p>
+              <p style={{ marginBottom: 10 }}>
+                <strong style={{ color: theme.gold }}>Your Responsibility:</strong> You are responsible for backing up any information you enter into SoloOS. We strongly recommend downloading a data backup summary regularly using the button on the Dashboard.
+              </p>
+              <p style={{ marginBottom: 10 }}>
+                <strong style={{ color: theme.gold }}>No Liability:</strong> The developer of SoloOS accepts no responsibility for any loss of data, financial loss, or any other loss arising from the use of this app or from data not being saved, backed up, or recovered.
+              </p>
+              <p style={{ fontSize: 11, color: theme.textMuted }}>
+                SoloOS provides estimates only. Always consult a qualified accountant for tax and financial advice.
+              </p>
+            </div>
+
+            <hr style={s.hr} />
+
+            {/* Checkbox */}
+            <div
+              onClick={() => setChecked(!checked)}
+              style={{ display: "flex", alignItems: "flex-start", gap: 12, cursor: "pointer", padding: "10px 0", marginBottom: 16 }}
+            >
+              <div style={{
+                width: 20, height: 20, borderRadius: 5, flexShrink: 0, marginTop: 1,
+                background: checked ? theme.accent : "transparent",
+                border: `2px solid ${checked ? theme.accent : theme.border}`,
+                display: "flex", alignItems: "center", justifyContent: "center",
+                transition: "all 0.15s",
+              }}>
+                {checked && <span style={{ color: "#fff", fontSize: 12, fontWeight: 700 }}>✓</span>}
+              </div>
+              <span style={{ fontSize: 12, color: theme.text, lineHeight: 1.5 }}>
+                I understand that SoloOS does not automatically save my data and that the developer is not liable for any data loss. I will back up my information regularly.
+              </span>
+            </div>
+
+            {/* Button */}
+            <button
+              onClick={() => { if (checked) { setAgreed(true); setShowDisclaimer(false); } }}
+              style={{
+                width: "100%", padding: "12px", borderRadius: 9, border: "none",
+                background: checked ? theme.accent : theme.border,
+                color: checked ? "#fff" : theme.textMuted,
+                fontSize: 13, fontWeight: 700, fontFamily: "'DM Sans', sans-serif",
+                cursor: checked ? "pointer" : "not-allowed",
+                transition: "all 0.2s",
+              }}
+            >
+              {checked ? "✅ I Agree — Enter SoloOS" : "Please tick the box above to continue"}
+            </button>
+
+            <div style={{ textAlign: "center", marginTop: 10, fontSize: 10, color: theme.textDim }}>
+              This disclaimer is shown once per session
+            </div>
+          </div>
+        </div>
+      )}
       {/* Top nav bar */}
       <div style={s.topBar}>
         <div style={s.logo}>SoloOS</div>
