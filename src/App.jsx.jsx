@@ -227,43 +227,113 @@ function Dashboard() {
         </Card>
       </div>
 
-      {/* Data Backup Summary */}
-      <DataBackup />
+      {/* Session Manager */}
+      <SessionManager />
     </div>
   );
 }
 
-function DataBackup() {
-  const download = () => {
+// ── SESSION MANAGER ───────────────────────────────────────
+// Uses a global event so components can broadcast their state for saving
+const SESSION_KEY = "soloos_session_v1";
+
+function SessionManager() {
+  const [lastSaved, setLastSaved] = useState(null);
+  const [loadMsg, setLoadMsg] = useState("");
+  const [showConfirmClear, setShowConfirmClear] = useState(false);
+
+  // Check if a saved session exists
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem(SESSION_KEY);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        setLastSaved(parsed._savedAt || null);
+      }
+    } catch {}
+  }, []);
+
+  const saveSession = () => {
+    try {
+      // Collect all data from sessionStorage (components write there on change)
+      const session = {
+        _savedAt: new Date().toISOString(),
+        _version: "1.0",
+      };
+      // Gather any component data stored in sessionStorage
+      for (let i = 0; i < sessionStorage.length; i++) {
+        const key = sessionStorage.key(i);
+        if (key && key.startsWith("soloos_")) {
+          try { session[key] = JSON.parse(sessionStorage.getItem(key)); } catch {}
+        }
+      }
+      localStorage.setItem(SESSION_KEY, JSON.stringify(session));
+      setLastSaved(new Date().toISOString());
+      setLoadMsg("✅ Session saved successfully!");
+      setTimeout(() => setLoadMsg(""), 3000);
+    } catch {
+      setLoadMsg("❌ Could not save — storage may be unavailable.");
+      setTimeout(() => setLoadMsg(""), 3000);
+    }
+  };
+
+  const loadSession = () => {
+    try {
+      const saved = localStorage.getItem(SESSION_KEY);
+      if (!saved) { setLoadMsg("⚠️ No saved session found."); setTimeout(() => setLoadMsg(""), 3000); return; }
+      const parsed = JSON.parse(saved);
+      // Restore into sessionStorage so components can read on next render
+      Object.keys(parsed).forEach(key => {
+        if (key.startsWith("soloos_")) {
+          sessionStorage.setItem(key, JSON.stringify(parsed[key]));
+        }
+      });
+      setLoadMsg("✅ Session loaded! Refresh the page to see your data.");
+      setTimeout(() => setLoadMsg(""), 5000);
+    } catch {
+      setLoadMsg("❌ Could not load session.");
+      setTimeout(() => setLoadMsg(""), 3000);
+    }
+  };
+
+  const clearSession = () => {
+    try {
+      localStorage.removeItem(SESSION_KEY);
+      sessionStorage.clear();
+      setLastSaved(null);
+      setShowConfirmClear(false);
+      setLoadMsg("✅ Session cleared. Refresh to start fresh.");
+      setTimeout(() => setLoadMsg(""), 4000);
+    } catch {}
+  };
+
+  const downloadBackup = () => {
     const now = new Date().toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" });
-    const content = `SOLOOS — DATA BACKUP SUMMARY
+    let sessionData = "No saved session found.";
+    try {
+      const saved = localStorage.getItem(SESSION_KEY);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        sessionData = JSON.stringify(parsed, null, 2);
+      }
+    } catch {}
+
+    const content = `SOLOOS — DATA BACKUP
 Generated: ${now}
 ${"─".repeat(44)}
 
-⚠️  IMPORTANT: SoloOS stores data in your browser
-session only. Data may be lost if you clear your
-browser cache or reinstall the app. Please keep
-this file as a backup and regenerate it regularly.
+⚠️  IMPORTANT: SoloOS stores data in localStorage.
+Data may be lost if you clear browser storage.
+Keep this file as a backup.
 
 ${"─".repeat(44)}
-DASHBOARD SNAPSHOT
+SAVED SESSION DATA
 ${"─".repeat(44)}
-Monthly Target:        £8,000
-Current Earned:        £0
-Tax Jar Rate:          25%
-Self Assessment Due:   31 Jan 2027
+${sessionData}
 
 ${"─".repeat(44)}
-HOW TO RESTORE YOUR DATA
-${"─".repeat(44)}
-SoloOS does not yet have cloud sync. To protect
-your data:
-
-1. Download this summary regularly
-2. Take screenshots of each page
-3. Keep a note of your key figures
-
-Full cloud backup is coming in a future update.
+TO RESTORE: Copy this file somewhere safe.
+Contact support if you need help recovering data.
 
 ${"─".repeat(44)}
 SOLOOS — UK Sole Trader App
@@ -281,15 +351,55 @@ https://solo-os1828.vercel.app/
     URL.revokeObjectURL(url);
   };
 
+  const fmtDate = (iso) => {
+    if (!iso) return null;
+    try {
+      return new Date(iso).toLocaleString("en-GB", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
+    } catch { return iso; }
+  };
+
   return (
-    <div style={{ margin: "8px 0 4px 0", padding: "10px 13px", background: theme.surface, borderRadius: 10, border: `1px solid ${theme.border}` }}>
-      <div style={{ ...s.ct, marginBottom: 6 }}>💾 Data Backup</div>
-      <div style={{ fontSize: 10, color: theme.textMuted, marginBottom: 8, lineHeight: 1.5 }}>
-        SoloOS stores data in your session only. Download a summary regularly to avoid losing your data.
+    <div style={{ margin: "8px 0 4px 0", background: theme.surface, borderRadius: 12, border: `1px solid ${theme.border}`, padding: "12px 14px" }}>
+      <div style={{ ...s.ct, marginBottom: 8, justifyContent: "space-between" }}>
+        <span>💾 Session & Backup</span>
+        {lastSaved && <span style={{ fontSize: 9, color: theme.green, textTransform: "none", letterSpacing: 0, fontWeight: 400 }}>Last saved: {fmtDate(lastSaved)}</span>}
       </div>
-      <button onClick={download} style={{ ...s.btn("ghost"), width: "100%", border: `1px solid ${theme.accent}44`, color: theme.accent, fontSize: 11, padding: "7px" }}>
-        📥 Download Data Backup Summary
-      </button>
+
+      {/* Message */}
+      {loadMsg && (
+        <div style={{ fontSize: 11, color: loadMsg.startsWith("✅") ? theme.green : loadMsg.startsWith("⚠️") ? theme.gold : theme.red, marginBottom: 8, padding: "6px 10px", background: theme.bg, borderRadius: 7 }}>
+          {loadMsg}
+        </div>
+      )}
+
+      {/* Main buttons */}
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 7, marginBottom: 7 }}>
+        <button onClick={saveSession} style={{ ...s.btn("primary"), padding: "9px", fontSize: 11, display: "flex", alignItems: "center", justifyContent: "center", gap: 5 }}>
+          💾 Save Session
+        </button>
+        <button onClick={loadSession} style={{ ...s.btn("ghost"), padding: "9px", fontSize: 11, border: `1px solid ${theme.green}55`, color: theme.green, display: "flex", alignItems: "center", justifyContent: "center", gap: 5 }}>
+          📂 Load Session
+        </button>
+      </div>
+
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 7 }}>
+        <button onClick={downloadBackup} style={{ ...s.btn("ghost"), padding: "9px", fontSize: 11, border: `1px solid ${theme.gold}44`, color: theme.gold, display: "flex", alignItems: "center", justifyContent: "center", gap: 5 }}>
+          📥 Download Backup
+        </button>
+        {!showConfirmClear
+          ? <button onClick={() => setShowConfirmClear(true)} style={{ ...s.btn("ghost"), padding: "9px", fontSize: 11, border: `1px solid ${theme.red}44`, color: theme.red, display: "flex", alignItems: "center", justifyContent: "center", gap: 5 }}>
+              🗑 Clear Session
+            </button>
+          : <div style={{ display: "flex", gap: 5 }}>
+              <button onClick={clearSession} style={{ ...s.btn("ghost"), flex: 1, padding: "9px", fontSize: 10, border: `1px solid ${theme.red}66`, color: theme.red }}>Yes, clear</button>
+              <button onClick={() => setShowConfirmClear(false)} style={{ ...s.btn("ghost"), flex: 1, padding: "9px", fontSize: 10 }}>Cancel</button>
+            </div>
+        }
+      </div>
+
+      <div style={{ fontSize: 9, color: theme.textDim, marginTop: 8, lineHeight: 1.5 }}>
+        Save stores your session in this browser. Load restores it. Download backup saves a file to your device. Data is browser-specific — not synced across devices.
+      </div>
     </div>
   );
 }
