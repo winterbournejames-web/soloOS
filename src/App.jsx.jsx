@@ -58,7 +58,7 @@ function Bar({ pct, color }) {
   return <div style={{ height: 5, background: theme.border, borderRadius: 100, overflow: "hidden" }}><div style={{ height: "100%", width: `${Math.min(pct, 100)}%`, background: color || theme.accent, borderRadius: 100, transition: "width 0.5s" }} /></div>;
 }
 function Pill({ color, children }) { return <span style={s.pill(color)}>{children}</span>; }
-function Card({ children, accent, style }) { return <div style={{ ...s.card(accent), ...style }}>{children}</div>; }
+function Card({ children, accent, style, onClick }) { return <div style={{ ...s.card(accent), ...style }} onClick={onClick}>{children}</div>; }
 
 // ── MODAL OVERLAY ─────────────────────────────────────────
 function Modal({ title, subtitle, onClose, onComplete, completeLabel = "✅ Complete", children, accentColor }) {
@@ -195,10 +195,89 @@ function SmartAlerts() {
     </div>
   );
 }
+// ── DETAIL MODAL ──────────────────────────────────────────
+function DetailModal({ title, subtitle, icon, color, onClose, children }) {
+  const c = color || theme.accent;
+  return (
+    <div style={{ position: "fixed", inset: 0, zIndex: 1000, background: "rgba(0,0,0,0.8)", display: "flex", alignItems: "center", justifyContent: "center", padding: 20, boxSizing: "border-box" }}>
+      <div style={{ background: theme.surface, borderRadius: 16, border: `1px solid ${c}55`, boxShadow: `0 0 40px ${c}22`, width: "100%", maxWidth: 560, maxHeight: "85vh", display: "flex", flexDirection: "column" }}>
+        <div style={{ padding: "16px 20px", borderBottom: `1px solid ${theme.border}`, display: "flex", alignItems: "center", gap: 12, flexShrink: 0 }}>
+          <div style={{ width: 40, height: 40, borderRadius: 10, background: c + "22", border: `1px solid ${c}44`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 20, flexShrink: 0 }}>{icon}</div>
+          <div style={{ flex: 1 }}>
+            <div style={{ fontFamily: "'Syne', sans-serif", fontWeight: 800, fontSize: 16, color: theme.text }}>{title}</div>
+            {subtitle && <div style={{ fontSize: 11, color: theme.textMuted, marginTop: 1 }}>{subtitle}</div>}
+          </div>
+          <button onClick={onClose} style={{ background: "none", border: `1px solid ${theme.border}`, borderRadius: 7, color: theme.textMuted, cursor: "pointer", fontSize: 14, width: 30, height: 30, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>✕</button>
+        </div>
+        <div style={{ padding: "18px 20px", overflowY: "auto", flex: 1 }}>{children}</div>
+        <div style={{ padding: "12px 20px", borderTop: `1px solid ${theme.border}`, flexShrink: 0 }}>
+          <button onClick={onClose} style={{ ...s.btn("primary"), width: "100%", padding: "9px", background: c }}>✕ Close</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function DetailRow({ label, value, color, sub }) {
+  return (
+    <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", padding: "10px 0", borderBottom: `1px solid ${theme.border}18` }}>
+      <div><div style={{ fontSize: 12, color: theme.textMuted }}>{label}</div>{sub && <div style={{ fontSize: 10, color: theme.textDim, marginTop: 2 }}>{sub}</div>}</div>
+      <div style={{ fontWeight: 700, fontSize: 14, color: color || theme.text, textAlign: "right" }}>{value}</div>
+    </div>
+  );
+}
+
 function Dashboard() {
   const earned = 0, target = 8000, pct = Math.round((earned / target) * 100);
+  const [detailModal, setDetailModal] = useState(null);
+
+  const statDetails = {
+    "Monthly Goal": {
+      icon: "💰", color: theme.accent, subtitle: "Your monthly income progress",
+      rows: [
+        { label: "Monthly target", value: `£${target.toLocaleString()}`, color: theme.accent },
+        { label: "Earned so far", value: `£${earned.toLocaleString()}`, color: theme.green },
+        { label: "Remaining", value: `£${(target - earned).toLocaleString()}`, color: theme.red },
+        { label: "Progress", value: `${pct}%`, color: theme.accent },
+        { label: "Days left this month", value: "21 days", sub: "Based on current month" },
+        { label: "Daily target needed", value: `£${Math.ceil((target - earned) / 21).toLocaleString()}`, sub: "To hit your goal" },
+      ]
+    },
+    "Tax Jar": {
+      icon: "🏦", color: theme.gold, subtitle: "Your automatic tax savings",
+      rows: [
+        { label: "Tax jar balance", value: "£0", color: theme.gold },
+        { label: "Set-aside rate", value: "25%", sub: "Of all income received" },
+        { label: "Self Assessment deadline", value: "31 Jan 2027", color: theme.red },
+        { label: "Payment on account 1", value: "31 Jan 2026" },
+        { label: "Payment on account 2", value: "31 Jul 2026", color: theme.gold },
+        { label: "Tip", value: "Download tax summary from Invoicing page", color: theme.textMuted },
+      ]
+    },
+    "Hours This Week": {
+      icon: "⏱", color: theme.green, subtitle: "Your billable hours breakdown",
+      rows: [
+        { label: "Total hours this week", value: "0h", color: theme.green },
+        { label: "Billable hours", value: "0h", color: theme.accent },
+        { label: "Admin hours", value: "0h", color: theme.textMuted },
+        { label: "Effective hourly rate", value: "£0/hr", sub: "Based on invoiced work" },
+        { label: "Unbilled value", value: "£0", color: theme.gold },
+        { label: "Tip", value: "Use the Time page to log hours", color: theme.textMuted },
+      ]
+    },
+  };
+
   return (
     <div style={s.page}>
+      {/* Detail Modal */}
+      {detailModal && (
+        <DetailModal title={detailModal} icon={statDetails[detailModal].icon} color={statDetails[detailModal].color} subtitle={statDetails[detailModal].subtitle} onClose={() => setDetailModal(null)}>
+          {statDetails[detailModal].rows.map((row, i) => (
+            <DetailRow key={i} label={row.label} value={row.value} color={row.color} sub={row.sub} />
+          ))}
+        </DetailModal>
+      )}
+
       <div style={{ ...s.row, justifyContent: "space-between" }}>
         <div><div style={s.ptitle}>Good morning 👋</div><div style={s.psub}>Sunday, 10 May 2026 — your business at a glance</div></div>
       </div>
@@ -209,11 +288,12 @@ function Dashboard() {
           { icon: "🏦", label: "Tax Jar", val: "£0", sub: "25% auto set-aside · SA due Jan 2027", color: theme.gold, bar: null },
           { icon: "⏱", label: "Hours This Week", val: "0h", sub: "0h billable · 0h admin · £0/hr eff.", color: theme.green, bar: null },
         ].map((item, i) => (
-          <Card key={i} accent={item.color}>
+          <Card key={i} accent={item.color} style={{ cursor: "pointer", transition: "all 0.15s" }} onClick={() => setDetailModal(item.label)}>
             <div style={s.ct}>{item.icon} {item.label}</div>
             <div style={{ ...s.stat, color: item.color }}>{item.val}</div>
             <div style={s.sub}>{item.sub}</div>
             {item.bar && <div style={{ marginTop: 7 }}><Bar pct={item.bar} color={item.color} /></div>}
+            <div style={{ fontSize: 9, color: item.color, marginTop: 5, opacity: 0.7 }}>Tap for details →</div>
           </Card>
         ))}
       </div>
@@ -442,6 +522,7 @@ function Invoicing() {
   const [invoices, setInvoices] = useLocalStorage("soloos_invoices", initInvoices);
   const [creating, setCreating] = useState(false);
   const [form, setForm] = useState({ client: "", amount: "", due: "", status: "Draft" });
+  const [detailModal, setDetailModal] = useState(null); // "Paid" | "Outstanding" | "Overdue" | invoice object
   const scol = { Paid: theme.green, Sent: theme.blue, Overdue: theme.red, Draft: theme.textMuted };
   const paid = invoices.filter(i => i.status === "Paid").reduce((s, i) => s + i.amount, 0);
   const out = invoices.filter(i => i.status === "Sent").reduce((s, i) => s + i.amount, 0);
@@ -453,8 +534,59 @@ function Invoicing() {
     setCreating(false); setForm({ client: "", amount: "", due: "", status: "Draft" });
   };
 
+  const statConfig = {
+    Paid: { icon: "✅", color: theme.green, invoices: invoices.filter(i => i.status === "Paid") },
+    Outstanding: { icon: "📤", color: theme.blue, invoices: invoices.filter(i => i.status === "Sent") },
+    Overdue: { icon: "⚠️", color: theme.red, invoices: invoices.filter(i => i.status === "Overdue") },
+  };
+
   return (
     <div style={s.page}>
+      {/* Stat card detail modal */}
+      {detailModal && typeof detailModal === "string" && statConfig[detailModal] && (
+        <DetailModal title={`${detailModal} Invoices`} icon={statConfig[detailModal].icon} color={statConfig[detailModal].color} subtitle={`${statConfig[detailModal].invoices.length} invoice${statConfig[detailModal].invoices.length !== 1 ? "s" : ""}`} onClose={() => setDetailModal(null)}>
+          {statConfig[detailModal].invoices.length === 0
+            ? <div style={{ textAlign: "center", color: theme.textMuted, padding: "20px 0", fontSize: 13 }}>No {detailModal.toLowerCase()} invoices yet</div>
+            : statConfig[detailModal].invoices.map((inv, i) => (
+              <div key={i} style={{ padding: "12px 0", borderBottom: `1px solid ${theme.border}18` }}>
+                <div style={{ ...s.row, justifyContent: "space-between", marginBottom: 4 }}>
+                  <span style={{ fontWeight: 700, color: theme.accent, fontSize: 13 }}>{inv.id}</span>
+                  <span style={{ fontWeight: 800, fontSize: 16, color: statConfig[detailModal].color }}>£{inv.amount.toLocaleString()}</span>
+                </div>
+                <div style={{ ...s.row, justifyContent: "space-between" }}>
+                  <span style={{ fontSize: 12, color: theme.text }}>{inv.client}</span>
+                  <span style={{ fontSize: 11, color: theme.textMuted }}>Due: {inv.due}</span>
+                </div>
+              </div>
+            ))
+          }
+          <div style={{ marginTop: 14, padding: "10px 14px", background: statConfig[detailModal].color + "11", borderRadius: 9, border: `1px solid ${statConfig[detailModal].color}33` }}>
+            <div style={{ ...s.row, justifyContent: "space-between" }}>
+              <span style={{ fontSize: 12, color: theme.textMuted }}>Total {detailModal}</span>
+              <span style={{ fontWeight: 800, fontSize: 18, color: statConfig[detailModal].color }}>£{(detailModal === "Paid" ? paid : detailModal === "Outstanding" ? out : over).toLocaleString()}</span>
+            </div>
+          </div>
+        </DetailModal>
+      )}
+
+      {/* Invoice row detail modal */}
+      {detailModal && typeof detailModal === "object" && (
+        <DetailModal title={detailModal.id} icon="📄" color={scol[detailModal.status]} subtitle={`Invoice for ${detailModal.client}`} onClose={() => setDetailModal(null)}>
+          <DetailRow label="Client" value={detailModal.client} />
+          <DetailRow label="Amount" value={`£${detailModal.amount.toLocaleString()}`} color={theme.green} />
+          <DetailRow label="Due Date" value={detailModal.due || "Not set"} />
+          <DetailRow label="Status" value={detailModal.status} color={scol[detailModal.status]} />
+          {detailModal.status !== "Paid" && (
+            <div style={{ marginTop: 14 }}>
+              <button style={{ ...s.btn("primary"), width: "100%", padding: "9px", background: theme.green }}
+                onClick={() => { setInvoices(invoices.map(i => i.id === detailModal.id ? { ...i, status: "Paid" } : i)); setDetailModal(null); }}>
+                ✅ Mark as Paid
+              </button>
+            </div>
+          )}
+        </DetailModal>
+      )}
+
       <div style={{ ...s.row, justifyContent: "space-between" }}>
         <div><div style={s.ptitle}>Invoicing</div><div style={s.psub}>Create, send and track your invoices</div></div>
         <button style={s.btn("primary")} onClick={() => setCreating(!creating)}>+ New Invoice</button>
@@ -462,38 +594,21 @@ function Invoicing() {
 
       <div style={s.g3}>
         {[{ label: "Paid", val: paid, color: theme.green }, { label: "Outstanding", val: out, color: theme.blue }, { label: "Overdue", val: over, color: theme.red }].map((x, i) => (
-          <Card key={i} accent={x.color}><div style={s.ct}>{x.label}</div><div style={{ ...s.stat, color: x.color }}>£{x.val.toLocaleString()}</div></Card>
+          <Card key={i} accent={x.color} style={{ cursor: "pointer" }} onClick={() => setDetailModal(x.label)}>
+            <div style={s.ct}>{x.label}</div>
+            <div style={{ ...s.stat, color: x.color }}>£{x.val.toLocaleString()}</div>
+            <div style={{ fontSize: 9, color: x.color, marginTop: 4, opacity: 0.7 }}>Tap to view →</div>
+          </Card>
         ))}
       </div>
 
       {creating && (
-        <Modal
-          title="📄 New Invoice"
-          subtitle="Fill in the details below to create your invoice"
-          accentColor={theme.accent}
-          onClose={() => setCreating(false)}
-          onComplete={create}
-          completeLabel="✅ Create Invoice"
-        >
+        <Modal title="📄 New Invoice" subtitle="Fill in the details below to create your invoice" accentColor={theme.accent} onClose={() => setCreating(false)} onComplete={create} completeLabel="✅ Create Invoice">
           <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-            <div>
-              <label style={{ ...s.lbl, fontSize: 11, marginBottom: 5 }}>Client Name</label>
-              <input style={{ ...s.input, fontSize: 13, padding: "9px 12px" }} value={form.client} onChange={e => setForm({ ...form, client: e.target.value })} placeholder="e.g. Apex Studio" autoFocus />
-            </div>
-            <div>
-              <label style={{ ...s.lbl, fontSize: 11, marginBottom: 5 }}>Amount (£)</label>
-              <input style={{ ...s.input, fontSize: 13, padding: "9px 12px" }} type="number" value={form.amount} onChange={e => setForm({ ...form, amount: e.target.value })} placeholder="0" />
-            </div>
-            <div>
-              <label style={{ ...s.lbl, fontSize: 11, marginBottom: 5 }}>Due Date</label>
-              <input style={{ ...s.input, fontSize: 13, padding: "9px 12px" }} type="date" value={form.due} onChange={e => setForm({ ...form, due: e.target.value })} />
-            </div>
-            <div>
-              <label style={{ ...s.lbl, fontSize: 11, marginBottom: 5 }}>Status</label>
-              <select style={{ ...s.input, fontSize: 13, padding: "9px 12px" }} value={form.status} onChange={e => setForm({ ...form, status: e.target.value })}>
-                {["Draft", "Sent", "Paid"].map(x => <option key={x}>{x}</option>)}
-              </select>
-            </div>
+            <div><label style={{ ...s.lbl, fontSize: 11, marginBottom: 5 }}>Client Name</label><input style={{ ...s.input, fontSize: 13, padding: "9px 12px" }} value={form.client} onChange={e => setForm({ ...form, client: e.target.value })} placeholder="e.g. Apex Studio" autoFocus /></div>
+            <div><label style={{ ...s.lbl, fontSize: 11, marginBottom: 5 }}>Amount (£)</label><input style={{ ...s.input, fontSize: 13, padding: "9px 12px" }} type="number" value={form.amount} onChange={e => setForm({ ...form, amount: e.target.value })} placeholder="0" /></div>
+            <div><label style={{ ...s.lbl, fontSize: 11, marginBottom: 5 }}>Due Date</label><input style={{ ...s.input, fontSize: 13, padding: "9px 12px" }} type="date" value={form.due} onChange={e => setForm({ ...form, due: e.target.value })} /></div>
+            <div><label style={{ ...s.lbl, fontSize: 11, marginBottom: 5 }}>Status</label><select style={{ ...s.input, fontSize: 13, padding: "9px 12px" }} value={form.status} onChange={e => setForm({ ...form, status: e.target.value })}>{["Draft", "Sent", "Paid"].map(x => <option key={x}>{x}</option>)}</select></div>
           </div>
         </Modal>
       )}
@@ -503,7 +618,7 @@ function Invoicing() {
           <thead><tr>{["Invoice", "Client", "Amount", "Due", "Status", ""].map(h => <th key={h} style={s.th}>{h}</th>)}</tr></thead>
           <tbody>
             {invoices.map(inv => (
-              <tr key={inv.id}>
+              <tr key={inv.id} style={{ cursor: "pointer" }} onClick={() => setDetailModal(inv)}>
                 <td style={{ ...s.td, fontWeight: 600, color: theme.accent }}>{inv.id}</td>
                 <td style={s.td}>{inv.client}</td>
                 <td style={{ ...s.td, fontWeight: 600 }}>£{inv.amount.toLocaleString()}</td>
@@ -740,6 +855,7 @@ function TimeTracker() {
   const [rate, setRate] = useState(120);
   const [showLog, setShowLog] = useState(false);
   const [logForm, setLogForm] = useState({ project: "", hours: "", rate: 120 });
+  const [selectedEntry, setSelectedEntry] = useState(null);
   const ref = useRef(null);
 
   useEffect(() => {
@@ -776,6 +892,56 @@ function TimeTracker() {
 
   return (
     <div style={s.page}>
+      {/* Entry detail modal */}
+      {selectedEntry && typeof selectedEntry === "object" && selectedEntry !== "unbilled" && (
+        <DetailModal title={selectedEntry.project} icon="⏱" color={selectedEntry.billed ? theme.green : theme.gold} subtitle={`Logged on ${selectedEntry.date}`} onClose={() => setSelectedEntry(null)}>
+          <DetailRow label="Project" value={selectedEntry.project} />
+          <DetailRow label="Hours" value={`${selectedEntry.hours}h`} color={theme.accent} />
+          <DetailRow label="Rate" value={`£${selectedEntry.rate}/hr`} />
+          <DetailRow label="Total Value" value={`£${(selectedEntry.hours * selectedEntry.rate).toFixed(0)}`} color={theme.green} />
+          <DetailRow label="Date" value={selectedEntry.date} />
+          <DetailRow label="Status" value={selectedEntry.billed ? "Billed" : "Unbilled"} color={selectedEntry.billed ? theme.green : theme.gold} />
+          {!selectedEntry.billed && (
+            <div style={{ marginTop: 14, display: "flex", gap: 8 }}>
+              <button style={{ ...s.btn("primary"), flex: 1, padding: "9px", background: theme.green }}
+                onClick={() => { setEntries(entries.map(x => x.id === selectedEntry.id ? { ...x, billed: true } : x)); setSelectedEntry(null); }}>
+                ✅ Mark as Billed
+              </button>
+              <button style={{ ...s.btn("ghost"), flex: 1, padding: "9px", color: theme.red, border: `1px solid ${theme.red}44` }}
+                onClick={() => { setEntries(entries.filter(x => x.id !== selectedEntry.id)); setSelectedEntry(null); }}>
+                🗑 Delete
+              </button>
+            </div>
+          )}
+        </DetailModal>
+      )}
+
+      {/* Unbilled summary modal */}
+      {selectedEntry === "unbilled" && (
+        <DetailModal title="Unbilled Entries" icon="💸" color={theme.gold} subtitle={`${entries.filter(e => !e.billed).length} entries · £${unbilled.toFixed(0)} total`} onClose={() => setSelectedEntry(null)}>
+          {entries.filter(e => !e.billed).length === 0
+            ? <div style={{ textAlign: "center", color: theme.textMuted, padding: "20px 0" }}>No unbilled entries</div>
+            : entries.filter(e => !e.billed).map((e, i) => (
+              <div key={i} style={{ padding: "10px 0", borderBottom: `1px solid ${theme.border}18` }}>
+                <div style={{ ...s.row, justifyContent: "space-between", marginBottom: 3 }}>
+                  <span style={{ fontWeight: 700, fontSize: 12 }}>{e.project}</span>
+                  <span style={{ fontWeight: 800, color: theme.green }}>£{(e.hours * e.rate).toFixed(0)}</span>
+                </div>
+                <div style={{ ...s.row, justifyContent: "space-between" }}>
+                  <span style={{ fontSize: 11, color: theme.textMuted }}>{e.hours}h @ £{e.rate}/hr</span>
+                  <span style={{ fontSize: 11, color: theme.textMuted }}>{e.date}</span>
+                </div>
+              </div>
+            ))
+          }
+          <div style={{ marginTop: 12, padding: "10px 14px", background: theme.gold + "11", borderRadius: 9, border: `1px solid ${theme.gold}33` }}>
+            <div style={{ ...s.row, justifyContent: "space-between" }}>
+              <span style={{ fontSize: 12, color: theme.textMuted }}>Total unbilled</span>
+              <span style={{ fontWeight: 800, fontSize: 18, color: theme.gold }}>£{unbilled.toFixed(0)}</span>
+            </div>
+          </div>
+        </DetailModal>
+      )}
       {showLog && (
         <Modal title="⏹ Log Time Entry" subtitle="Confirm or adjust the details before saving" accentColor={theme.green} onClose={() => { setShowLog(false); setRunning(false); }} onComplete={confirmLog} completeLabel="✅ Save Entry">
           <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
@@ -820,7 +986,7 @@ function TimeTracker() {
                 : <><button style={{ ...s.btn("ghost"), flex: 1 }} onClick={() => setRunning(false)}>⏸ Pause</button><button style={{ ...s.btn("primary"), flex: 1, background: theme.green }} onClick={stopAndConfirm}>⏹ Log</button></>}
             </div>
           </Card>
-          <Card accent={theme.gold} style={{}}>
+          <Card accent={theme.gold} style={{ cursor: "pointer" }} onClick={() => setSelectedEntry("unbilled")}>
             <div style={s.ct}>💸 Unbilled Value</div>
             <div style={{ ...s.stat, color: theme.gold }}>£{unbilled.toFixed(0)}</div>
             <div style={{ ...s.sub, marginBottom: 9 }}>{entries.filter(e => !e.billed).length} unbilled entries</div>
@@ -831,22 +997,24 @@ function TimeTracker() {
                 <span style={{ fontSize: 10, width: 26, textAlign: "right" }}>{d.h}h</span>
               </div>
             ))}
+            <div style={{ fontSize: 9, color: theme.gold, marginTop: 5, opacity: 0.7 }}>Tap for details →</div>
           </Card>
         </div>
 
         <Card style={{ display: "flex", flexDirection: "column" }}>
           <div style={s.ct}>📋 Recent Entries</div>
+          {entries.length === 0 && <div style={{ textAlign: "center", color: theme.textMuted, padding: "16px 0", fontSize: 11 }}>No entries yet — start the timer or log manually</div>}
           <table style={{ width: "100%", borderCollapse: "collapse", tableLayout: "fixed" }}>
             <thead><tr>{["Project", "Hrs", "Value", "Date", "Status", ""].map(h => <th key={h} style={s.th}>{h}</th>)}</tr></thead>
             <tbody>
               {entries.map(e => (
-                <tr key={e.id}>
+                <tr key={e.id} style={{ cursor: "pointer" }} onClick={() => setSelectedEntry(e)}>
                   <td style={s.td}>{e.project}</td>
                   <td style={{ ...s.td, fontWeight: 600 }}>{e.hours}h</td>
                   <td style={{ ...s.td, color: theme.green }}>£{(e.hours * e.rate).toFixed(0)}</td>
                   <td style={{ ...s.td, color: theme.textMuted }}>{e.date}</td>
                   <td style={s.td}><Pill color={e.billed ? theme.green : theme.gold}>{e.billed ? "Billed" : "Unbilled"}</Pill></td>
-                  <td style={s.td}>{!e.billed && <button style={{ ...s.btn("ghost"), padding: "3px 7px", fontSize: 11 }} onClick={() => setEntries(entries.map(x => x.id === e.id ? { ...x, billed: true } : x))}>Bill</button>}</td>
+                  <td style={s.td}>{!e.billed && <button style={{ ...s.btn("ghost"), padding: "3px 7px", fontSize: 11 }} onClick={ev => { ev.stopPropagation(); setEntries(entries.map(x => x.id === e.id ? { ...x, billed: true } : x)); }}>Bill</button>}</td>
                 </tr>
               ))}
             </tbody>
@@ -864,6 +1032,8 @@ function CRM() {
   const [clients, setClients] = useLocalStorage("soloos_clients", initClients);
   const [adding, setAdding] = useState(false);
   const [form, setForm] = useState({ name: "", contact: "", value: "", stage: "Lead", tags: "" });
+  const [selectedClient, setSelectedClient] = useState(null);
+  const [stageFilter, setStageFilter] = useState(null);
   const scol = { Active: theme.green, Proposal: theme.blue, Lead: theme.gold, Completed: theme.textMuted };
 
   const add = () => {
@@ -872,8 +1042,55 @@ function CRM() {
     setAdding(false); setForm({ name: "", contact: "", value: "", stage: "Lead", tags: "" });
   };
 
+  const deleteClient = (id) => { setClients(clients.filter(c => c.id !== id)); setSelectedClient(null); };
+  const updateStage = (id, stage) => { setClients(clients.map(c => c.id === id ? { ...c, stage } : c)); setSelectedClient(prev => prev ? { ...prev, stage } : null); };
+
+  const filteredClients = stageFilter ? clients.filter(c => c.stage === stageFilter) : clients;
+
   return (
     <div style={s.page}>
+      {/* Client detail modal */}
+      {selectedClient && (
+        <DetailModal title={selectedClient.name} icon="👤" color={scol[selectedClient.stage]} subtitle={selectedClient.contact} onClose={() => setSelectedClient(null)}>
+          <DetailRow label="Company" value={selectedClient.name} />
+          <DetailRow label="Contact" value={selectedClient.contact} />
+          <DetailRow label="Deal Value" value={`£${(+selectedClient.value || 0).toLocaleString()}`} color={theme.green} />
+          <DetailRow label="Stage" value={selectedClient.stage} color={scol[selectedClient.stage]} />
+          <DetailRow label="Last Contact" value={selectedClient.last} />
+          {selectedClient.tags?.length > 0 && <DetailRow label="Tags" value={selectedClient.tags.join(", ")} color={theme.accent} />}
+          <hr style={s.hr} />
+          <div style={s.ct}>Change Stage</div>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 7, marginBottom: 14 }}>
+            {["Lead", "Proposal", "Active", "Completed"].map(stage => (
+              <button key={stage} onClick={() => updateStage(selectedClient.id, stage)} style={{ padding: "8px", borderRadius: 7, cursor: "pointer", fontSize: 11, fontWeight: selectedClient.stage === stage ? 700 : 400, fontFamily: "'DM Sans', sans-serif", background: selectedClient.stage === stage ? scol[stage] + "22" : theme.bg, color: selectedClient.stage === stage ? scol[stage] : theme.textMuted, border: `1px solid ${selectedClient.stage === stage ? scol[stage] + "66" : theme.border}` }}>
+                {stage}
+              </button>
+            ))}
+          </div>
+          <button onClick={() => deleteClient(selectedClient.id)} style={{ ...s.btn("ghost"), width: "100%", color: theme.red, border: `1px solid ${theme.red}44`, padding: "8px", fontSize: 11 }}>
+            🗑 Remove Client
+          </button>
+        </DetailModal>
+      )}
+
+      {/* Stage filter modal */}
+      {stageFilter && (
+        <DetailModal title={`${stageFilter} Clients`} icon={stageFilter === "Lead" ? "🎯" : stageFilter === "Proposal" ? "📊" : "✅"} color={scol[stageFilter]} subtitle={`${clients.filter(c => c.stage === stageFilter).length} clients`} onClose={() => setStageFilter(null)}>
+          {clients.filter(c => c.stage === stageFilter).length === 0
+            ? <div style={{ textAlign: "center", color: theme.textMuted, padding: "20px 0" }}>No {stageFilter} clients yet</div>
+            : clients.filter(c => c.stage === stageFilter).map((c, i) => (
+              <div key={i} style={{ padding: "10px 0", borderBottom: `1px solid ${theme.border}18`, cursor: "pointer" }} onClick={() => { setStageFilter(null); setSelectedClient(c); }}>
+                <div style={{ ...s.row, justifyContent: "space-between" }}>
+                  <span style={{ fontWeight: 700, fontSize: 13 }}>{c.name}</span>
+                  <span style={{ fontWeight: 700, color: theme.green }}>£{(+c.value || 0).toLocaleString()}</span>
+                </div>
+                <div style={{ fontSize: 11, color: theme.textMuted, marginTop: 2 }}>{c.contact} · {c.last}</div>
+              </div>
+            ))
+          }
+        </DetailModal>
+      )}
+
       <div style={{ ...s.row, justifyContent: "space-between" }}>
         <div><div style={s.ptitle}>Client CRM</div><div style={s.psub}>Track relationships, follow-ups and pipeline</div></div>
         <button style={s.btn("primary")} onClick={() => setAdding(!adding)}>+ Add Client</button>
@@ -881,7 +1098,12 @@ function CRM() {
 
       <div style={s.g3}>
         {[{ label: "Leads", count: clients.filter(c => c.stage === "Lead").length, color: theme.gold }, { label: "Proposals", count: clients.filter(c => c.stage === "Proposal").length, color: theme.blue }, { label: "Active", count: clients.filter(c => c.stage === "Active").length, color: theme.green }].map((x, i) => (
-          <Card key={i} accent={x.color}><div style={s.ct}>{x.label}</div><div style={{ ...s.stat, color: x.color }}>{x.count}</div><div style={s.sub}>in pipeline</div></Card>
+          <Card key={i} accent={x.color} style={{ cursor: "pointer" }} onClick={() => setStageFilter(x.label)}>
+            <div style={s.ct}>{x.label}</div>
+            <div style={{ ...s.stat, color: x.color }}>{x.count}</div>
+            <div style={s.sub}>in pipeline</div>
+            <div style={{ fontSize: 9, color: x.color, marginTop: 4, opacity: 0.7 }}>Tap to view →</div>
+          </Card>
         ))}
       </div>
 
@@ -929,16 +1151,17 @@ function CRM() {
 
       <Card style={{}}>
         <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+          {clients.length === 0 && <div style={{ textAlign: "center", color: theme.textMuted, padding: "20px 0", fontSize: 12 }}>No clients yet — click + Add Client to get started</div>}
           {clients.map(c => (
-            <div key={c.id} style={{ display: "flex", alignItems: "center", gap: 11, padding: "8px 11px", background: theme.bg, borderRadius: 8, border: `1px solid ${theme.border}` }}>
+            <div key={c.id} onClick={() => setSelectedClient(c)} style={{ display: "flex", alignItems: "center", gap: 11, padding: "8px 11px", background: theme.bg, borderRadius: 8, border: `1px solid ${theme.border}`, cursor: "pointer", transition: "all 0.15s" }}>
               <div style={{ width: 32, height: 32, borderRadius: 8, background: `linear-gradient(135deg, ${theme.accent}, ${theme.blue})`, display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 800, fontSize: 13, flexShrink: 0 }}>{c.name[0]}</div>
-              <div style={{}}>
+              <div style={{ flex: 1 }}>
                 <div style={{ fontWeight: 700, fontSize: 13 }}>{c.name}</div>
                 <div style={{ fontSize: 11, color: theme.textMuted }}>{c.contact} · Last contact: {c.last}</div>
               </div>
               <div style={{ display: "flex", gap: 4 }}>{c.tags.map(t => <Pill key={t} color={theme.accent}>{t}</Pill>)}</div>
               <div style={{ textAlign: "right" }}>
-                <div style={{ fontWeight: 700, fontSize: 13 }}>£{c.value.toLocaleString()}</div>
+                <div style={{ fontWeight: 700, fontSize: 13 }}>£{(+c.value || 0).toLocaleString()}</div>
                 <Pill color={scol[c.stage]}>{c.stage}</Pill>
               </div>
             </div>
@@ -1820,6 +2043,7 @@ function Expenses() {
   const [expenses, setExpenses] = useLocalStorage("soloos_expenses", []);
   const [adding, setAdding] = useState(false);
   const [form, setForm] = useState({ desc: "", amount: "", cat: "Software", vat: false });
+  const [selectedExpense, setSelectedExpense] = useState(null);
 
   const cats = ["Software", "Office", "Travel", "Equipment", "Entertainment", "Professional", "Marketing", "Other"];
   const catColors = { Software: theme.blue, Office: theme.accent, Travel: theme.green, Equipment: theme.gold, Entertainment: "#e07bff", Professional: theme.red, Marketing: "#ff9f57", Other: theme.textMuted };
@@ -1842,6 +2066,31 @@ function Expenses() {
 
   return (
     <div style={s.page}>
+      {/* Expense detail modal */}
+      {selectedExpense && (
+        <DetailModal title={selectedExpense.desc} icon="🧾" color={catColors[selectedExpense.cat] || theme.textMuted} subtitle={`${selectedExpense.cat} · ${selectedExpense.date}`} onClose={() => setSelectedExpense(null)}>
+          <DetailRow label="Description" value={selectedExpense.desc} />
+          <DetailRow label="Category" value={selectedExpense.cat} color={catColors[selectedExpense.cat]} />
+          <DetailRow label="Amount" value={`£${selectedExpense.amount.toLocaleString()}`} color={theme.red} />
+          <DetailRow label="Date" value={selectedExpense.date} />
+          <DetailRow label="VAT applicable" value={selectedExpense.vat ? "Yes — 20%" : "No"} color={selectedExpense.vat ? theme.green : theme.textMuted} />
+          {selectedExpense.vat && <DetailRow label="VAT reclaimable" value={`£${(selectedExpense.amount * 0.2).toFixed(2)}`} color={theme.green} />}
+          <DetailRow label="Receipt" value={selectedExpense.receipt ? "✅ Saved" : "⚠️ Missing"} color={selectedExpense.receipt ? theme.green : theme.gold} />
+          <div style={{ marginTop: 14, display: "flex", gap: 8 }}>
+            {!selectedExpense.receipt && (
+              <button style={{ ...s.btn("primary"), flex: 1, padding: "9px", background: theme.green }}
+                onClick={() => { setExpenses(expenses.map(e => e.id === selectedExpense.id ? { ...e, receipt: true } : e)); setSelectedExpense(prev => ({ ...prev, receipt: true })); }}>
+                ✅ Mark Receipt Saved
+              </button>
+            )}
+            <button style={{ ...s.btn("ghost"), flex: 1, padding: "9px", color: theme.red, border: `1px solid ${theme.red}44` }}
+              onClick={() => { setExpenses(expenses.filter(e => e.id !== selectedExpense.id)); setSelectedExpense(null); }}>
+              🗑 Delete
+            </button>
+          </div>
+        </DetailModal>
+      )}
+
       <div style={{ ...s.row, justifyContent: "space-between" }}>
         <div><div style={s.ptitle}>🧾 Expenses & VAT</div><div style={s.psub}>Log expenses, track VAT owed and reclaim what you're due</div></div>
         <button style={s.btn("primary")} onClick={() => setAdding(!adding)}>+ Log Expense</button>
@@ -1849,10 +2098,11 @@ function Expenses() {
 
       {/* Top stats */}
       <div style={s.g3}>
-        <Card accent={theme.red}>
-          <div style={s.ct}>💸 Total Expenses (May)</div>
+        <Card accent={theme.red} style={{ cursor: "pointer" }} onClick={() => setSelectedExpense({ desc: "Total Expenses Summary", cat: "All", amount: totalExp, date: "This month", vat: false, receipt: true, _summary: true })}>
+          <div style={s.ct}>💸 Total Expenses</div>
           <div style={{ ...s.stat, color: theme.red }}>£{totalExp.toLocaleString()}</div>
           <div style={s.sub}>{expenses.length} transactions logged</div>
+          <div style={{ fontSize: 9, color: theme.red, marginTop: 4, opacity: 0.7 }}>Tap to view →</div>
         </Card>
         <Card accent={theme.green}>
           <div style={s.ct}>♻️ VAT Reclaimable</div>
@@ -1976,8 +2226,9 @@ function Expenses() {
             </tr>
           </thead>
           <tbody>
+            {expenses.length === 0 && <tr><td colSpan="6" style={{ ...s.td, textAlign: "center", color: theme.textMuted, padding: "16px" }}>No expenses logged yet</td></tr>}
             {expenses.map(e => (
-              <tr key={e.id} style={{ transition: "background 0.1s" }}>
+              <tr key={e.id} style={{ transition: "background 0.1s", cursor: "pointer" }} onClick={() => setSelectedExpense(e)}>
                 <td style={{ ...s.td, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontSize: 12 }}>{e.desc}</td>
                 <td style={s.td}><Pill color={catColors[e.cat] || theme.textMuted}>{e.cat}</Pill></td>
                 <td style={{ ...s.td, fontWeight: 700, color: theme.red, fontSize: 13, whiteSpace: "nowrap" }}>£{e.amount.toLocaleString()}</td>
