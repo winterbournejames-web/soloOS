@@ -1906,6 +1906,7 @@ function CashFlow() {
   const [showAdd, setShowAdd] = useState(false);
   const [newItem, setNewItem] = useState({ label: "", amount: "", month: "Jun", type: "income" });
   const [items, setItems] = useLocalStorage("soloos_cashflow_items", []);
+  const [selectedModal, setSelectedModal] = useState(null); // { month, data, balance }
 
   const months = ["May", "Jun", "Jul"];
   const monthColors = [theme.blue, theme.accent, theme.green];
@@ -1931,12 +1932,50 @@ function CashFlow() {
 
   return (
     <div style={s.page}>
+      {/* Month detail modal */}
+      {selectedModal && (
+        <DetailModal
+          title={`${selectedModal.month} Cash Flow`}
+          icon="💸"
+          color={selectedModal.color}
+          subtitle={`Projected balance: £${selectedModal.balance.toLocaleString()}`}
+          onClose={() => setSelectedModal(null)}
+        >
+          <DetailRow label="Opening balance" value={`£${balance.toLocaleString()}`} color={theme.blue} />
+          <DetailRow label="Total income" value={`+£${selectedModal.data.income.toLocaleString()}`} color={theme.green} />
+          <DetailRow label="Total expenses" value={`-£${selectedModal.data.expenses.toLocaleString()}`} color={theme.red} />
+          <DetailRow label="Net" value={`${selectedModal.data.net >= 0 ? "+" : ""}£${selectedModal.data.net.toLocaleString()}`} color={selectedModal.data.net >= 0 ? theme.green : theme.red} />
+          <DetailRow label="Projected closing balance" value={`£${selectedModal.balance.toLocaleString()}`} color={selectedModal.color} />
+          <hr style={s.hr} />
+          <div style={s.ct}>Income Items</div>
+          {items.filter(i => i.month === selectedModal.month && i.type === "income").length === 0
+            ? <div style={{ fontSize: 11, color: theme.textMuted, marginBottom: 8 }}>No income items for {selectedModal.month}</div>
+            : items.filter(i => i.month === selectedModal.month && i.type === "income").map((item, i) => (
+              <div key={i} style={{ ...s.row, justifyContent: "space-between", padding: "7px 0", borderBottom: `1px solid ${theme.border}18` }}>
+                <span style={{ fontSize: 12 }}>{item.confirmed ? "✅" : "⏳"} {item.label}</span>
+                <span style={{ fontSize: 12, fontWeight: 700, color: theme.green }}>+£{Math.abs(item.amount).toLocaleString()}</span>
+              </div>
+            ))
+          }
+          <div style={{ ...s.ct, marginTop: 10 }}>Expense Items</div>
+          {items.filter(i => i.month === selectedModal.month && i.type === "expense").length === 0
+            ? <div style={{ fontSize: 11, color: theme.textMuted }}>No expense items for {selectedModal.month}</div>
+            : items.filter(i => i.month === selectedModal.month && i.type === "expense").map((item, i) => (
+              <div key={i} style={{ ...s.row, justifyContent: "space-between", padding: "7px 0", borderBottom: `1px solid ${theme.border}18` }}>
+                <span style={{ fontSize: 12 }}>{item.confirmed ? "✅" : "⏳"} {item.label}</span>
+                <span style={{ fontSize: 12, fontWeight: 700, color: theme.red }}>-£{Math.abs(item.amount).toLocaleString()}</span>
+              </div>
+            ))
+          }
+        </DetailModal>
+      )}
+
       <div style={{ ...s.row, justifyContent: "space-between" }}>
         <div><div style={s.ptitle}>💸 Cash Flow Forecast</div><div style={s.psub}>Predict your bank balance 90 days ahead</div></div>
         <button style={s.btn("primary")} onClick={() => setShowAdd(!showAdd)}>+ Add Item</button>
       </div>
 
-      {/* Current balance input */}
+      {/* Current balance input + projected cards */}
       <div style={s.g3}>
         <Card accent={theme.blue}>
           <div style={s.ct}>🏦 Current Balance</div>
@@ -1948,10 +1987,11 @@ function CashFlow() {
           <div style={s.sub}>Your bank balance today</div>
         </Card>
         {monthData.map((m, i) => (
-          <Card key={m.month} accent={m.color}>
+          <Card key={m.month} accent={m.color} style={{ cursor: "pointer" }} onClick={() => setSelectedModal({ month: m.month, data: m, balance: balances[i], color: m.color })}>
             <div style={s.ct}>{m.month} Projected Balance</div>
             <div style={{ ...s.stat, color: balances[i] < 0 ? theme.red : m.color }}>£{balances[i].toLocaleString()}</div>
             <div style={s.sub}>+£{m.income.toLocaleString()} in · -£{m.expenses.toLocaleString()} out</div>
+            <div style={{ fontSize: 9, color: m.color, marginTop: 4, opacity: 0.7 }}>Tap for breakdown →</div>
           </Card>
         ))}
       </div>
@@ -2037,17 +2077,19 @@ function CashFlow() {
         {months.map((m, mi) => {
           const mItems = items.filter(i => i.month === m);
           return (
-            <Card key={m} accent={monthColors[mi]}>
+            <Card key={m} accent={monthColors[mi]} style={{ cursor: "pointer" }} onClick={() => setSelectedModal({ month: m, data: monthData[mi], balance: balances[mi], color: monthColors[mi] })}>
               <div style={s.ct}>{m} Breakdown</div>
+              {mItems.length === 0 && <div style={{ fontSize: 11, color: theme.textMuted, marginBottom: 6 }}>No items yet</div>}
               <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
-                {mItems.map(item => (
+                {mItems.slice(0, 3).map(item => (
                   <div key={item.id} style={{ ...s.row, justifyContent: "space-between", opacity: item.confirmed ? 1 : 0.65 }}>
-                    <span style={{ fontSize: 11, flex: 1 }}>{item.confirmed ? "✅" : "⏳"} {item.label}</span>
+                    <span style={{ fontSize: 11, flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{item.confirmed ? "✅" : "⏳"} {item.label}</span>
                     <span style={{ fontSize: 11, fontWeight: 600, color: item.amount > 0 ? theme.green : theme.red, flexShrink: 0 }}>
                       {item.amount > 0 ? "+" : ""}£{Math.abs(item.amount).toLocaleString()}
                     </span>
                   </div>
                 ))}
+                {mItems.length > 3 && <div style={{ fontSize: 10, color: theme.textMuted }}>+{mItems.length - 3} more — tap to view all</div>}
               </div>
               <hr style={s.hr} />
               <div style={{ ...s.row, justifyContent: "space-between" }}>
@@ -2056,6 +2098,7 @@ function CashFlow() {
                   {monthData[mi].net >= 0 ? "+" : ""}£{monthData[mi].net.toLocaleString()}
                 </span>
               </div>
+              <div style={{ fontSize: 9, color: monthColors[mi], marginTop: 4, opacity: 0.7 }}>Tap for full breakdown →</div>
             </Card>
           );
         })}
@@ -2092,28 +2135,68 @@ function Expenses() {
 
   return (
     <div style={s.page}>
-      {/* Expense detail modal */}
+      {/* Expense / VAT detail modal */}
       {selectedExpense && (
-        <DetailModal title={selectedExpense.desc} icon="🧾" color={catColors[selectedExpense.cat] || theme.textMuted} subtitle={`${selectedExpense.cat} · ${selectedExpense.date}`} onClose={() => setSelectedExpense(null)}>
-          <DetailRow label="Description" value={selectedExpense.desc} />
-          <DetailRow label="Category" value={selectedExpense.cat} color={catColors[selectedExpense.cat]} />
-          <DetailRow label="Amount" value={`£${selectedExpense.amount.toLocaleString()}`} color={theme.red} />
-          <DetailRow label="Date" value={selectedExpense.date} />
-          <DetailRow label="VAT applicable" value={selectedExpense.vat ? "Yes — 20%" : "No"} color={selectedExpense.vat ? theme.green : theme.textMuted} />
-          {selectedExpense.vat && <DetailRow label="VAT reclaimable" value={`£${(selectedExpense.amount * 0.2).toFixed(2)}`} color={theme.green} />}
-          <DetailRow label="Receipt" value={selectedExpense.receipt ? "✅ Saved" : "⚠️ Missing"} color={selectedExpense.receipt ? theme.green : theme.gold} />
-          <div style={{ marginTop: 14, display: "flex", gap: 8 }}>
-            {!selectedExpense.receipt && (
-              <button style={{ ...s.btn("primary"), flex: 1, padding: "9px", background: theme.green }}
-                onClick={() => { setExpenses(expenses.map(e => e.id === selectedExpense.id ? { ...e, receipt: true } : e)); setSelectedExpense(prev => ({ ...prev, receipt: true })); }}>
-                ✅ Mark Receipt Saved
-              </button>
-            )}
-            <button style={{ ...s.btn("ghost"), flex: 1, padding: "9px", color: theme.red, border: `1px solid ${theme.red}44` }}
-              onClick={() => { setExpenses(expenses.filter(e => e.id !== selectedExpense.id)); setSelectedExpense(null); }}>
-              🗑 Delete
-            </button>
-          </div>
+        <DetailModal
+          title={selectedExpense._vatModal ? "VAT Reclaimable" : selectedExpense._vatDueModal ? "VAT Due to HMRC" : selectedExpense.desc}
+          icon={selectedExpense._vatModal ? "♻️" : selectedExpense._vatDueModal ? "📋" : "🧾"}
+          color={selectedExpense._vatModal ? theme.green : selectedExpense._vatDueModal ? theme.gold : (catColors[selectedExpense.cat] || theme.textMuted)}
+          subtitle={selectedExpense._vatModal ? "VAT you can reclaim on expenses" : selectedExpense._vatDueModal ? `Due: ${selectedExpense.vatDue}` : `${selectedExpense.cat} · ${selectedExpense.date}`}
+          onClose={() => setSelectedExpense(null)}
+        >
+          {selectedExpense._vatModal && (
+            <>
+              <DetailRow label="Total VAT reclaimable" value={`£${selectedExpense.vatReclaimable.toFixed(2)}`} color={theme.green} />
+              <DetailRow label="VAT rate" value="20%" />
+              <DetailRow label="Qualifying expenses" value={`${selectedExpense.vatItems?.length || 0} items`} color={theme.accent} />
+              <hr style={s.hr} />
+              <div style={s.ct}>VAT-Qualifying Expenses</div>
+              {(selectedExpense.vatItems || []).map((e, i) => (
+                <div key={i} style={{ ...s.row, justifyContent: "space-between", padding: "7px 0", borderBottom: `1px solid ${theme.border}18` }}>
+                  <span style={{ fontSize: 12 }}>{e.desc}</span>
+                  <div style={{ textAlign: "right" }}>
+                    <div style={{ fontSize: 12, fontWeight: 700, color: theme.red }}>£{e.amount.toLocaleString()}</div>
+                    <div style={{ fontSize: 10, color: theme.green }}>Reclaim: £{(e.amount * 0.2).toFixed(2)}</div>
+                  </div>
+                </div>
+              ))}
+            </>
+          )}
+          {selectedExpense._vatDueModal && (
+            <>
+              <DetailRow label="VAT collected from clients" value={`£${(selectedExpense.vatCollected || 0).toFixed(2)}`} color={theme.gold} />
+              <DetailRow label="VAT reclaimable on expenses" value={`-£${selectedExpense.vatReclaimable.toFixed(2)}`} color={theme.green} />
+              <DetailRow label="Net VAT owed to HMRC" value={`£${selectedExpense.vatOwed.toFixed(2)}`} color={theme.red} sub="Pay this to HMRC" />
+              <DetailRow label="Filing deadline" value={selectedExpense.vatDue} color={selectedExpense.daysToVat < 30 ? theme.red : theme.gold} />
+              <DetailRow label="Days remaining" value={`${selectedExpense.daysToVat} days`} color={selectedExpense.daysToVat < 30 ? theme.red : theme.textMuted} />
+              <div style={{ marginTop: 12, padding: "10px 14px", background: theme.gold + "11", borderRadius: 9, border: `1px solid ${theme.gold}33`, fontSize: 11, color: theme.textMuted, lineHeight: 1.6 }}>
+                💡 Pay your VAT bill at <span style={{ color: theme.gold }}>gov.uk/pay-vat</span>. Set a reminder before the deadline to avoid penalties.
+              </div>
+            </>
+          )}
+          {!selectedExpense._vatModal && !selectedExpense._vatDueModal && (
+            <>
+              <DetailRow label="Description" value={selectedExpense.desc} />
+              <DetailRow label="Category" value={selectedExpense.cat} color={catColors[selectedExpense.cat]} />
+              <DetailRow label="Amount" value={`£${selectedExpense.amount.toLocaleString()}`} color={theme.red} />
+              <DetailRow label="Date" value={selectedExpense.date} />
+              <DetailRow label="VAT applicable" value={selectedExpense.vat ? "Yes — 20%" : "No"} color={selectedExpense.vat ? theme.green : theme.textMuted} />
+              {selectedExpense.vat && <DetailRow label="VAT reclaimable" value={`£${(selectedExpense.amount * 0.2).toFixed(2)}`} color={theme.green} />}
+              <DetailRow label="Receipt" value={selectedExpense.receipt ? "✅ Saved" : "⚠️ Missing"} color={selectedExpense.receipt ? theme.green : theme.gold} />
+              <div style={{ marginTop: 14, display: "flex", gap: 8 }}>
+                {!selectedExpense.receipt && (
+                  <button style={{ ...s.btn("primary"), flex: 1, padding: "9px", background: theme.green }}
+                    onClick={() => { setExpenses(expenses.map(e => e.id === selectedExpense.id ? { ...e, receipt: true } : e)); setSelectedExpense(prev => ({ ...prev, receipt: true })); }}>
+                    ✅ Mark Receipt Saved
+                  </button>
+                )}
+                <button style={{ ...s.btn("ghost"), flex: 1, padding: "9px", color: theme.red, border: `1px solid ${theme.red}44` }}
+                  onClick={() => { setExpenses(expenses.filter(e => e.id !== selectedExpense.id)); setSelectedExpense(null); }}>
+                  🗑 Delete
+                </button>
+              </div>
+            </>
+          )}
         </DetailModal>
       )}
 
@@ -2130,16 +2213,28 @@ function Expenses() {
           <div style={s.sub}>{expenses.length} transactions logged</div>
           <div style={{ fontSize: 9, color: theme.red, marginTop: 4, opacity: 0.7 }}>Tap to view →</div>
         </Card>
-        <Card accent={theme.green}>
+        <Card accent={theme.green} style={{ cursor: "pointer" }} onClick={() => setSelectedExpense({
+          _vatModal: true, desc: "VAT Reclaimable Summary", cat: "VAT", amount: vatReclaimable,
+          date: "This quarter", vat: true, receipt: true,
+          vatItems: expenses.filter(e => e.vat),
+          vatReclaimable, vatOwed, vatDue, daysToVat
+        })}>
           <div style={s.ct}>♻️ VAT Reclaimable</div>
           <div style={{ ...s.stat, color: theme.green }}>£{vatReclaimable.toFixed(0)}</div>
           <div style={s.sub}>On VAT-registered purchases</div>
+          <div style={{ fontSize: 9, color: theme.green, marginTop: 4, opacity: 0.7 }}>Tap to view →</div>
         </Card>
-        <Card accent={theme.gold}>
+        <Card accent={theme.gold} style={{ cursor: "pointer" }} onClick={() => setSelectedExpense({
+          _vatDueModal: true, desc: "VAT Due to HMRC", cat: "VAT", amount: vatOwed,
+          date: vatDue, vat: false, receipt: true,
+          vatOwed, vatDue, daysToVat, vatReclaimable,
+          vatCollected: vatQuarterlyRevenue * 0.2
+        })}>
           <div style={s.ct}>📋 VAT Due to HMRC</div>
           <div style={{ ...s.stat, color: theme.gold }}>£{vatOwed.toFixed(0)}</div>
           <div style={s.sub}>{vatDue} · {daysToVat} days away</div>
           <div style={{ marginTop: 7 }}><Bar pct={100 - (daysToVat / 90) * 100} color={daysToVat < 30 ? theme.red : theme.gold} /></div>
+          <div style={{ fontSize: 9, color: theme.gold, marginTop: 4, opacity: 0.7 }}>Tap for breakdown →</div>
         </Card>
       </div>
 
