@@ -1331,13 +1331,34 @@ ${f.senderEmail || "[Your Email]"}`;
         <div><div style={s.ptitle}>Proposals</div><div style={s.psub}>Build, send and track proposals with win/loss analysis</div></div>
         <button style={s.btn("primary")} onClick={() => openCompose()}>+ New Proposal</button>
       </div>
-      <div style={s.g3}>
-        {[{ label: "Win Rate", val: "62%", color: theme.green }, { label: "Avg Deal Size", val: "£4,150", color: theme.accent }, { label: "Open Pipeline", val: "£7,000", color: theme.blue }].map((x, i) => (
-          <Card key={i} accent={x.color}><div style={s.ct}>{x.label}</div><div style={{ ...s.stat, color: x.color }}>{x.val}</div></Card>
-        ))}
-      </div>
+
+      {/* Real calculated stats */}
+      {(() => {
+        const won = proposals.filter(p => p.status === "Won").length;
+        const total = proposals.filter(p => p.status === "Won" || p.status === "Lost").length;
+        const winRate = total > 0 ? Math.round((won / total) * 100) : 0;
+        const avgDeal = proposals.length > 0 ? Math.round(proposals.reduce((s, p) => s + (+p.value || 0), 0) / proposals.length) : 0;
+        const pipeline = proposals.filter(p => p.status === "Pending" || p.status === "Viewed").reduce((s, p) => s + (+p.value || 0), 0);
+        return (
+          <div style={s.g3}>
+            {[
+              { label: "Win Rate", val: proposals.length === 0 ? "—" : `${winRate}%`, color: theme.green },
+              { label: "Avg Deal Size", val: proposals.length === 0 ? "—" : `£${avgDeal.toLocaleString()}`, color: theme.accent },
+              { label: "Open Pipeline", val: `£${pipeline.toLocaleString()}`, color: theme.blue },
+            ].map((x, i) => (
+              <Card key={i} accent={x.color}>
+                <div style={s.ct}>{x.label}</div>
+                <div style={{ ...s.stat, color: x.color }}>{x.val}</div>
+              </Card>
+            ))}
+          </div>
+        );
+      })()}
+
       <Card style={{}}>
         <div style={s.ct}>📊 Proposal Pipeline</div>
+        {proposals.length === 0 && <div style={{ textAlign: "center", color: theme.textMuted, padding: "16px 0", fontSize: 11 }}>No proposals yet — click + New Proposal to get started</div>}
+        {proposals.length > 0 && (
         <table style={{ width: "100%", borderCollapse: "collapse", tableLayout: "fixed" }}>
           <thead><tr>{["Client", "Title", "Value", "Sent", "Win %", "Status", ""].map(h => <th key={h} style={s.th}>{h}</th>)}</tr></thead>
           <tbody>
@@ -1345,7 +1366,7 @@ ${f.senderEmail || "[Your Email]"}`;
               <tr key={p.id}>
                 <td style={{ ...s.td, fontWeight: 600 }}>{p.client}</td>
                 <td style={s.td}>{p.title}</td>
-                <td style={{ ...s.td, fontWeight: 600 }}>£{p.value.toLocaleString()}</td>
+                <td style={{ ...s.td, fontWeight: 600 }}>£{(+p.value || 0).toLocaleString()}</td>
                 <td style={{ ...s.td, color: theme.textMuted }}>{p.sent}</td>
                 <td style={s.td}>{p.win > 0 && p.win < 100 ? <div><div style={{ fontSize: 10, marginBottom: 2 }}>{p.win}%</div><Bar pct={p.win} color={p.win > 60 ? theme.green : theme.gold} /></div> : <span style={{ color: theme.textMuted }}>—</span>}</td>
                 <td style={s.td}><Pill color={scol[p.status]}>{p.status}</Pill></td>
@@ -1354,15 +1375,20 @@ ${f.senderEmail || "[Your Email]"}`;
             ))}
           </tbody>
         </table>
+        )}
         <hr style={s.hr} />
         <div style={{ ...s.row, gap: 14 }}>
-          {[{ label: "Won", count: proposals.filter(p => p.status === "Won").length, color: theme.green }, { label: "Lost", count: proposals.filter(p => p.status === "Lost").length, color: theme.red }, { label: "Pending", count: proposals.filter(p => p.status === "Pending" || p.status === "Viewed").length, color: theme.gold }].map((x, i) => (
+          {[
+            { label: "Won", count: proposals.filter(p => p.status === "Won").length, color: theme.green },
+            { label: "Lost", count: proposals.filter(p => p.status === "Lost").length, color: theme.red },
+            { label: "Pending", count: proposals.filter(p => p.status === "Pending" || p.status === "Viewed").length, color: theme.gold },
+          ].map((x, i) => (
             <div key={i} style={{ display: "flex", alignItems: "center", gap: 6 }}>
               <div style={{ width: 24, height: 24, borderRadius: 6, background: x.color + "22", border: `1px solid ${x.color}44`, display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 800, fontSize: 12, color: x.color }}>{x.count}</div>
               <span style={{ fontSize: 11, color: theme.textMuted }}>{x.label}</span>
             </div>
           ))}
-          <div style={{ marginLeft: "auto", fontSize: 11, color: theme.textMuted }}>Avg close time: <span style={{ color: theme.text }}>18 days</span></div>
+          {proposals.length > 0 && <div style={{ marginLeft: "auto", fontSize: 11, color: theme.textMuted }}>Total proposals: <span style={{ color: theme.text }}>{proposals.length}</span></div>}
         </div>
       </Card>
     </div>
