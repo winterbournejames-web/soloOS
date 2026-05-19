@@ -638,7 +638,7 @@ function Invoicing() {
 
 // ── TAX SUMMARY ───────────────────────────────────────────
 function TaxSummary({ invoiceTotal }) {
-  // UK 2025/26 tax rates for sole traders
+  // UK 2025/26 tax rates
   const PERSONAL_ALLOWANCE = 12570;
   const BASIC_RATE_LIMIT = 50270;
   const HIGHER_RATE_LIMIT = 125140;
@@ -648,201 +648,263 @@ function TaxSummary({ invoiceTotal }) {
   const CLASS4_UPPER_RATE = 0.02;
   const CLASS2_WEEKLY = 3.45;
 
-  // Editable assumptions
-  const [annualRevenue, setAnnualRevenue] = useState(0);
-  const [expenses, setExpenses] = useState(0);
-  const [pensionContribs, setPensionContribs] = useState(0);
+  const [view, setView] = useState("annual"); // annual | quarterly
+  const [activeQ, setActiveQ] = useState("Q1");
 
-  const profit = Math.max(0, annualRevenue - expenses - pensionContribs);
-  const taxableIncome = Math.max(0, profit - PERSONAL_ALLOWANCE);
+  // Annual inputs
+  const [annualRevenue, setAnnualRevenue] = useLocalStorage("soloos_tax_revenue", 0);
+  const [annualExpenses, setAnnualExpenses] = useLocalStorage("soloos_tax_expenses", 0);
+  const [pensionContribs, setPensionContribs] = useLocalStorage("soloos_tax_pension", 0);
 
-  // Income tax bands
-  const basicTax = Math.min(taxableIncome, BASIC_RATE_LIMIT - PERSONAL_ALLOWANCE) * 0.20;
-  const higherTax = Math.max(0, Math.min(taxableIncome - (BASIC_RATE_LIMIT - PERSONAL_ALLOWANCE), HIGHER_RATE_LIMIT - BASIC_RATE_LIMIT)) * 0.40;
-  const additionalTax = Math.max(0, taxableIncome - (HIGHER_RATE_LIMIT - PERSONAL_ALLOWANCE)) * 0.45;
-  const totalIncomeTax = basicTax + higherTax + additionalTax;
+  // Quarterly inputs — Q1 Apr-Jun, Q2 Jul-Sep, Q3 Oct-Dec, Q4 Jan-Mar
+  const quarters = ["Q1", "Q2", "Q3", "Q4"];
+  const qLabels = { Q1: "Apr–Jun", Q2: "Jul–Sep", Q3: "Oct–Dec", Q4: "Jan–Mar" };
+  const qDeadlines = { Q1: "5 Aug 2025", Q2: "5 Nov 2025", Q3: "5 Feb 2026", Q4: "5 May 2026" };
 
-  // National Insurance Class 2 & 4
-  const class2 = profit > NI_LOWER ? CLASS2_WEEKLY * 52 : 0;
-  const class4Lower = Math.max(0, Math.min(profit, NI_UPPER) - NI_LOWER) * CLASS4_LOWER_RATE;
-  const class4Upper = Math.max(0, profit - NI_UPPER) * CLASS4_UPPER_RATE;
-  const totalNI = class2 + class4Lower + class4Upper;
+  const [qData, setQData] = useLocalStorage("soloos_tax_quarters", {
+    Q1: { revenue: 0, expenses: 0 },
+    Q2: { revenue: 0, expenses: 0 },
+    Q3: { revenue: 0, expenses: 0 },
+    Q4: { revenue: 0, expenses: 0 },
+  });
 
-  const totalTax = totalIncomeTax + totalNI;
-  const effectiveRate = profit > 0 ? ((totalTax / profit) * 100).toFixed(1) : 0;
-  const monthlySet = Math.ceil(totalTax / 12);
+  const updateQ = (q, field, val) => setQData(prev => ({ ...prev, [q]: { ...prev[q], [field]: +val } }));
+
+  // Calculate tax from a profit figure
+  const calcTax = (rev, exp, pension) => {
+    const profit = Math.max(0, rev - exp - pension);
+    const taxableIncome = Math.max(0, profit - PERSONAL_ALLOWANCE);
+    const basicTax = Math.min(taxableIncome, BASIC_RATE_LIMIT - PERSONAL_ALLOWANCE) * 0.20;
+    const higherTax = Math.max(0, Math.min(taxableIncome - (BASIC_RATE_LIMIT - PERSONAL_ALLOWANCE), HIGHER_RATE_LIMIT - BASIC_RATE_LIMIT)) * 0.40;
+    const additionalTax = Math.max(0, taxableIncome - (HIGHER_RATE_LIMIT - PERSONAL_ALLOWANCE)) * 0.45;
+    const totalIncomeTax = basicTax + higherTax + additionalTax;
+    const class2 = profit > NI_LOWER ? CLASS2_WEEKLY * 52 : 0;
+    const class4Lower = Math.max(0, Math.min(profit, NI_UPPER) - NI_LOWER) * CLASS4_LOWER_RATE;
+    const class4Upper = Math.max(0, profit - NI_UPPER) * CLASS4_UPPER_RATE;
+    const totalNI = class2 + class4Lower + class4Upper;
+    const totalTax = totalIncomeTax + totalNI;
+    const effectiveRate = profit > 0 ? ((totalTax / profit) * 100).toFixed(1) : 0;
+    const taxBand = taxableIncome <= 0 ? "Personal Allowance" : taxableIncome <= (BASIC_RATE_LIMIT - PERSONAL_ALLOWANCE) ? "Basic Rate (20%)" : taxableIncome <= (HIGHER_RATE_LIMIT - PERSONAL_ALLOWANCE) ? "Higher Rate (40%)" : "Additional Rate (45%)";
+    const bandColor = taxableIncome <= 0 ? theme.green : taxableIncome <= (BASIC_RATE_LIMIT - PERSONAL_ALLOWANCE) ? theme.blue : taxableIncome <= (HIGHER_RATE_LIMIT - PERSONAL_ALLOWANCE) ? theme.gold : theme.red;
+    return { profit, taxableIncome, totalIncomeTax, totalNI, totalTax, effectiveRate, taxBand, bandColor };
+  };
+
+  // Annual calculation
+  const annual = calcTax(annualRevenue, annualExpenses, pensionContribs);
+  const monthlySet = Math.ceil(annual.totalTax / 12);
   const recommended25 = Math.ceil(annualRevenue * 0.25 / 12);
 
-  const taxBand = taxableIncome <= 0 ? "Personal Allowance" : taxableIncome <= (BASIC_RATE_LIMIT - PERSONAL_ALLOWANCE) ? "Basic Rate (20%)" : taxableIncome <= (HIGHER_RATE_LIMIT - PERSONAL_ALLOWANCE) ? "Higher Rate (40%)" : "Additional Rate (45%)";
-  const bandColor = taxableIncome <= 0 ? theme.green : taxableIncome <= (BASIC_RATE_LIMIT - PERSONAL_ALLOWANCE) ? theme.blue : taxableIncome <= (HIGHER_RATE_LIMIT - PERSONAL_ALLOWANCE) ? theme.gold : theme.red;
+  // Quarterly calculation — use annual profit split by quarter proportion
+  const totalQRevenue = quarters.reduce((s, q) => s + qData[q].revenue, 0);
+  const totalQExpenses = quarters.reduce((s, q) => s + qData[q].expenses, 0);
+  const qCalc = (q) => {
+    const qRev = qData[q].revenue;
+    const qExp = qData[q].expenses;
+    const qProfit = Math.max(0, qRev - qExp);
+    // Quarter tax is proportional share of annual tax
+    const annualProfit = Math.max(0, totalQRevenue - totalQExpenses);
+    const proportion = annualProfit > 0 ? qProfit / annualProfit : 0.25;
+    const fullYearTax = calcTax(totalQRevenue, totalQExpenses, 0);
+    const qTax = fullYearTax.totalTax * proportion;
+    return { revenue: qRev, expenses: qExp, profit: qProfit, tax: qTax };
+  };
+
+  const downloadReport = (mode) => {
+    const now = new Date().toLocaleDateString("en-GB");
+    let content = `SOLOOS — TAX SUMMARY REPORT\nUK Self Assessment 2025/26\nGenerated: ${now}\n${"─".repeat(40)}\n\n`;
+    if (mode === "annual") {
+      content += `ANNUAL SUMMARY\n${"─".repeat(40)}\nRevenue:             £${annualRevenue.toLocaleString()}\nExpenses:            £${annualExpenses.toLocaleString()}\nPension:             £${pensionContribs.toLocaleString()}\nTaxable Profit:      £${annual.profit.toLocaleString()}\n\nIncome Tax:          £${Math.round(annual.totalIncomeTax).toLocaleString()}\nNational Insurance:  £${Math.round(annual.totalNI).toLocaleString()}\nTotal Tax Bill:      £${Math.round(annual.totalTax).toLocaleString()}\nEffective Rate:      ${annual.effectiveRate}%\nSet aside monthly:   £${monthlySet.toLocaleString()}\n`;
+    } else {
+      content += `QUARTERLY BREAKDOWN\n${"─".repeat(40)}\n`;
+      quarters.forEach(q => {
+        const c = qCalc(q);
+        content += `\n${q} (${qLabels[q]})\nRevenue: £${c.revenue.toLocaleString()} | Expenses: £${c.expenses.toLocaleString()} | Profit: £${c.profit.toLocaleString()} | Est. Tax: £${Math.round(c.tax).toLocaleString()}\n`;
+      });
+      const totalTax = calcTax(totalQRevenue, totalQExpenses, 0);
+      content += `\nFull Year Total Tax: £${Math.round(totalTax.totalTax).toLocaleString()}\n`;
+    }
+    content += `\n${"─".repeat(40)}\n⚠ Estimates only. Consult a qualified accountant.\nSoloOS — solo-os1828.vercel.app`;
+    const blob = new Blob([content], { type: "text/plain" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `SoloOS-Tax-${mode}-${new Date().getFullYear()}.txt`;
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
 
   return (
     <Card accent={theme.gold}>
-      <div style={{ ...s.ct, justifyContent: "space-between" }}>
-        <span>📊 Approximate Tax Due This Year</span>
-        <span style={{ color: theme.textMuted, fontSize: 9, fontWeight: 400, textTransform: "none", letterSpacing: 0 }}>UK 2025/26 · estimates only</span>
+      {/* Header + view toggle */}
+      <div style={{ ...s.row, justifyContent: "space-between", marginBottom: 8 }}>
+        <div style={{ ...s.ct, marginBottom: 0 }}>📊 Tax Summary</div>
+        <div style={{ display: "flex", gap: 4, background: theme.bg, padding: 3, borderRadius: 7 }}>
+          {["annual", "quarterly"].map(v => (
+            <button key={v} onClick={() => setView(v)} style={{ padding: "4px 10px", borderRadius: 5, border: "none", cursor: "pointer", fontSize: 10, fontWeight: view === v ? 700 : 400, background: view === v ? theme.gold : "transparent", color: view === v ? "#000" : theme.textMuted, fontFamily: "'DM Sans', sans-serif" }}>
+              {v === "annual" ? "📅 Annual" : "🗓 Quarterly"}
+            </button>
+          ))}
+        </div>
       </div>
 
-      {/* Editable inputs */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0,1fr))", gap: 7, marginBottom: 10 }}>
-        {[
-          { label: "Est. Annual Revenue (£)", val: annualRevenue, set: setAnnualRevenue },
-          { label: "Business Expenses (£)", val: expenses, set: setExpenses },
-          { label: "Pension Contributions (£)", val: pensionContribs, set: setPensionContribs },
-        ].map((f, i) => (
-          <div key={i}>
-            <label style={s.lbl}>{f.label}</label>
-            <input type="number" style={s.input} value={f.val} onChange={e => f.set(+e.target.value)} />
+      {/* ── ANNUAL VIEW ── */}
+      {view === "annual" && (
+        <>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0,1fr))", gap: 7, marginBottom: 8 }}>
+            {[
+              { label: "Est. Annual Revenue (£)", val: annualRevenue, set: setAnnualRevenue },
+              { label: "Business Expenses (£)", val: annualExpenses, set: setAnnualExpenses },
+              { label: "Pension Contributions (£)", val: pensionContribs, set: setPensionContribs },
+            ].map((f, i) => (
+              <div key={i}><label style={s.lbl}>{f.label}</label><input type="number" style={s.input} value={f.val} onChange={e => f.set(+e.target.value)} /></div>
+            ))}
           </div>
-        ))}
-      </div>
 
-      {/* Tax breakdown */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0,1fr))", gap: 7, marginBottom: 10 }}>
-        {[
-          { label: "Taxable Profit", val: `£${profit.toLocaleString()}`, color: theme.text, sub: `After £${(expenses + pensionContribs).toLocaleString()} deductions` },
-          { label: "Income Tax", val: `£${Math.round(totalIncomeTax).toLocaleString()}`, color: theme.gold, sub: taxBand },
-          { label: "National Insurance", val: `£${Math.round(totalNI).toLocaleString()}`, color: theme.orange || "#ff9f57", sub: "Class 2 + Class 4" },
-        ].map((item, i) => (
-          <div key={i} style={{ background: theme.bg, borderRadius: 8, padding: "8px 10px", border: `1px solid ${theme.border}` }}>
-            <div style={s.lbl}>{item.label}</div>
-            <div style={{ fontSize: 16, fontWeight: 800, fontFamily: "'Syne', sans-serif", color: item.color }}>{item.val}</div>
-            <div style={{ fontSize: 10, color: bandColor, marginTop: 2 }}>{item.sub}</div>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0,1fr))", gap: 7, marginBottom: 8 }}>
+            {[
+              { label: "Taxable Profit", val: `£${annual.profit.toLocaleString()}`, color: theme.text, sub: `After £${(annualExpenses + pensionContribs).toLocaleString()} deductions` },
+              { label: "Income Tax", val: `£${Math.round(annual.totalIncomeTax).toLocaleString()}`, color: theme.gold, sub: annual.taxBand },
+              { label: "National Insurance", val: `£${Math.round(annual.totalNI).toLocaleString()}`, color: "#ff9f57", sub: "Class 2 + Class 4" },
+            ].map((item, i) => (
+              <div key={i} style={{ background: theme.bg, borderRadius: 8, padding: "8px 10px", border: `1px solid ${theme.border}` }}>
+                <div style={s.lbl}>{item.label}</div>
+                <div style={{ fontSize: 15, fontWeight: 800, fontFamily: "'Syne', sans-serif", color: item.color }}>{item.val}</div>
+                <div style={{ fontSize: 9, color: annual.bandColor, marginTop: 2 }}>{item.sub}</div>
+              </div>
+            ))}
           </div>
-        ))}
-      </div>
 
-      {/* Total + effective rate */}
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 7, marginBottom: 10 }}>
-        <div style={{ background: theme.gold + "18", borderRadius: 8, padding: "8px 10px", border: `1px solid ${theme.gold}44`, gridColumn: "1 / 2" }}>
-          <div style={s.lbl}>Total Tax Bill</div>
-          <div style={{ fontSize: 20, fontWeight: 800, fontFamily: "'Syne', sans-serif", color: theme.gold }}>£{Math.round(totalTax).toLocaleString()}</div>
-          <div style={{ fontSize: 10, color: theme.textMuted }}>Effective rate: {effectiveRate}%</div>
-        </div>
-        <div style={{ background: theme.green + "11", borderRadius: 8, padding: "8px 10px", border: `1px solid ${theme.green}33` }}>
-          <div style={s.lbl}>Set Aside Monthly</div>
-          <div style={{ fontSize: 16, fontWeight: 800, fontFamily: "'Syne', sans-serif", color: theme.green }}>£{monthlySet.toLocaleString()}</div>
-          <div style={{ fontSize: 10, color: theme.textMuted }}>Exact amount needed</div>
-        </div>
-        <div style={{ background: theme.blue + "11", borderRadius: 8, padding: "8px 10px", border: `1px solid ${theme.blue}33` }}>
-          <div style={s.lbl}>25% Rule (safe estimate)</div>
-          <div style={{ fontSize: 16, fontWeight: 800, fontFamily: "'Syne', sans-serif", color: theme.blue }}>£{recommended25.toLocaleString()}</div>
-          <div style={{ fontSize: 10, color: theme.textMuted }}>Per month from revenue</div>
-        </div>
-      </div>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 7, marginBottom: 8 }}>
+            <div style={{ background: theme.gold + "18", borderRadius: 8, padding: "8px 10px", border: `1px solid ${theme.gold}44` }}>
+              <div style={s.lbl}>Total Tax Bill</div>
+              <div style={{ fontSize: 18, fontWeight: 800, fontFamily: "'Syne', sans-serif", color: theme.gold }}>£{Math.round(annual.totalTax).toLocaleString()}</div>
+              <div style={{ fontSize: 9, color: theme.textMuted }}>Effective rate: {annual.effectiveRate}%</div>
+            </div>
+            <div style={{ background: theme.green + "11", borderRadius: 8, padding: "8px 10px", border: `1px solid ${theme.green}33` }}>
+              <div style={s.lbl}>Set Aside Monthly</div>
+              <div style={{ fontSize: 15, fontWeight: 800, fontFamily: "'Syne', sans-serif", color: theme.green }}>£{monthlySet.toLocaleString()}</div>
+              <div style={{ fontSize: 9, color: theme.textMuted }}>Exact amount needed</div>
+            </div>
+            <div style={{ background: theme.blue + "11", borderRadius: 8, padding: "8px 10px", border: `1px solid ${theme.blue}33` }}>
+              <div style={s.lbl}>25% Rule</div>
+              <div style={{ fontSize: 15, fontWeight: 800, fontFamily: "'Syne', sans-serif", color: theme.blue }}>£{recommended25.toLocaleString()}</div>
+              <div style={{ fontSize: 9, color: theme.textMuted }}>Per month (safe)</div>
+            </div>
+          </div>
+        </>
+      )}
 
-      {/* Tax band bar */}
+      {/* ── QUARTERLY VIEW ── */}
+      {view === "quarterly" && (
+        <>
+          <div style={{ fontSize: 10, color: theme.textMuted, marginBottom: 8, lineHeight: 1.5 }}>
+            Enter revenue and expenses per quarter. Tax estimates update automatically. Use for Making Tax Digital (MTD) quarterly reporting.
+          </div>
+
+          {/* Quarter tabs */}
+          <div style={{ display: "flex", gap: 4, marginBottom: 10 }}>
+            {quarters.map(q => (
+              <button key={q} onClick={() => setActiveQ(q)} style={{ flex: 1, padding: "6px 4px", borderRadius: 7, border: `1px solid ${activeQ === q ? theme.gold + "88" : theme.border}`, cursor: "pointer", fontSize: 10, fontWeight: activeQ === q ? 700 : 400, background: activeQ === q ? theme.gold + "22" : theme.bg, color: activeQ === q ? theme.gold : theme.textMuted, fontFamily: "'DM Sans', sans-serif" }}>
+                {q}<br /><span style={{ fontSize: 9, fontWeight: 400 }}>{qLabels[q]}</span>
+              </button>
+            ))}
+          </div>
+
+          {/* Active quarter inputs */}
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 7, marginBottom: 8 }}>
+            <div><label style={s.lbl}>{activeQ} Revenue (£)</label><input type="number" style={s.input} value={qData[activeQ].revenue} onChange={e => updateQ(activeQ, "revenue", e.target.value)} placeholder="0" /></div>
+            <div><label style={s.lbl}>{activeQ} Expenses (£)</label><input type="number" style={s.input} value={qData[activeQ].expenses} onChange={e => updateQ(activeQ, "expenses", e.target.value)} placeholder="0" /></div>
+          </div>
+
+          {/* Quarter result */}
+          {(() => {
+            const c = qCalc(activeQ);
+            return (
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0,1fr))", gap: 7, marginBottom: 8 }}>
+                {[
+                  { label: "Profit", val: `£${c.profit.toLocaleString()}`, color: theme.text },
+                  { label: "Est. Tax", val: `£${Math.round(c.tax).toLocaleString()}`, color: theme.gold },
+                  { label: "Deadline", val: qDeadlines[activeQ], color: theme.red },
+                ].map((item, i) => (
+                  <div key={i} style={{ background: theme.bg, borderRadius: 8, padding: "8px 10px", border: `1px solid ${theme.border}` }}>
+                    <div style={s.lbl}>{activeQ} {item.label}</div>
+                    <div style={{ fontSize: 13, fontWeight: 800, fontFamily: "'Syne', sans-serif", color: item.color }}>{item.val}</div>
+                  </div>
+                ))}
+              </div>
+            );
+          })()}
+
+          {/* All quarters summary */}
+          <div style={{ background: theme.bg, borderRadius: 8, padding: "8px 10px", border: `1px solid ${theme.border}`, marginBottom: 8 }}>
+            <div style={{ ...s.ct, marginBottom: 6 }}>Year to Date Summary</div>
+            <div style={{ display: "flex", gap: 0 }}>
+              {quarters.map((q, i) => {
+                const c = qCalc(q);
+                const hasData = qData[q].revenue > 0 || qData[q].expenses > 0;
+                return (
+                  <div key={q} onClick={() => setActiveQ(q)} style={{ flex: 1, padding: "6px 4px", textAlign: "center", cursor: "pointer", borderRight: i < 3 ? `1px solid ${theme.border}` : "none", background: activeQ === q ? theme.gold + "11" : "transparent" }}>
+                    <div style={{ fontSize: 9, color: activeQ === q ? theme.gold : theme.textMuted, fontWeight: 700 }}>{q}</div>
+                    <div style={{ fontSize: 11, fontWeight: 800, color: hasData ? theme.gold : theme.textDim }}>£{Math.round(c.tax).toLocaleString()}</div>
+                    <div style={{ fontSize: 8, color: theme.textDim }}>{qLabels[q]}</div>
+                  </div>
+                );
+              })}
+            </div>
+            <hr style={s.hr} />
+            <div style={{ ...s.row, justifyContent: "space-between" }}>
+              <span style={{ fontSize: 10, color: theme.textMuted }}>Total estimated tax (full year)</span>
+              <span style={{ fontWeight: 800, fontSize: 14, color: theme.gold }}>£{Math.round(calcTax(totalQRevenue, totalQExpenses, 0).totalTax).toLocaleString()}</span>
+            </div>
+          </div>
+        </>
+      )}
+
+      {/* Tax band bar (both views) */}
       <div style={{ marginBottom: 8 }}>
         <div style={{ ...s.row, justifyContent: "space-between", marginBottom: 4 }}>
-          <span style={{ fontSize: 10, color: theme.textMuted }}>Income tax band</span>
-          <Pill color={bandColor}>{taxBand}</Pill>
+          <span style={{ fontSize: 9, color: theme.textMuted }}>Tax band</span>
+          <Pill color={view === "annual" ? annual.bandColor : theme.gold}>{view === "annual" ? annual.taxBand : "Based on full year"}</Pill>
         </div>
         <div style={{ display: "flex", height: 6, borderRadius: 100, overflow: "hidden", gap: 1 }}>
-          {[
-            { label: "PA", limit: PERSONAL_ALLOWANCE, color: theme.green },
-            { label: "Basic", limit: BASIC_RATE_LIMIT, color: theme.blue },
-            { label: "Higher", limit: HIGHER_RATE_LIMIT, color: theme.gold },
-            { label: "Add.", limit: HIGHER_RATE_LIMIT * 1.2, color: theme.red },
-          ].map((band, i) => {
-            const pct = Math.min(Math.max((profit - (i === 0 ? 0 : [0, PERSONAL_ALLOWANCE, BASIC_RATE_LIMIT, HIGHER_RATE_LIMIT][i])) / band.limit * 100, 0), 100);
-            return <div key={i} style={{ flex: 1, background: profit > [0, PERSONAL_ALLOWANCE, BASIC_RATE_LIMIT, HIGHER_RATE_LIMIT][i] ? band.color : theme.border, borderRadius: 2, opacity: profit > [0, PERSONAL_ALLOWANCE, BASIC_RATE_LIMIT, HIGHER_RATE_LIMIT][i] ? 1 : 0.3 }} />;
-          })}
+          {[theme.green, theme.blue, theme.gold, theme.red].map((c, i) => (
+            <div key={i} style={{ flex: 1, background: c, borderRadius: 2, opacity: i <= [0,1,2,3].indexOf([0,1,2,3].find(j => {
+              const bands = [0, PERSONAL_ALLOWANCE, BASIC_RATE_LIMIT, HIGHER_RATE_LIMIT];
+              return (view === "annual" ? annual.profit : calcTax(totalQRevenue, totalQExpenses, 0).profit) <= bands[j+1] || j === 3;
+            })) ? 1 : 0.25 }} />
+          ))}
         </div>
-        <div style={{ display: "flex", justifyContent: "space-between", marginTop: 3 }}>
-          {["£0", "£12.5k", "£50.3k", "£125k"].map(l => <span key={l} style={{ fontSize: 9, color: theme.textDim }}>{l}</span>)}
+        <div style={{ display: "flex", justifyContent: "space-between", marginTop: 2 }}>
+          {["£0", "£12.5k", "£50.3k", "£125k"].map(l => <span key={l} style={{ fontSize: 8, color: theme.textDim }}>{l}</span>)}
         </div>
       </div>
 
-      {/* Key dates */}
-      <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+      {/* Key HMRC dates */}
+      <div style={{ display: "flex", gap: 5, flexWrap: "wrap", marginBottom: 8 }}>
         {[
-          { label: "Self Assessment deadline", date: "31 Jan 2027", urgent: false },
-          { label: "Payment on account 1", date: "31 Jan 2026", urgent: false },
+          { label: "Self Assessment", date: "31 Jan 2027", urgent: false },
           { label: "Payment on account 2", date: "31 Jul 2026", urgent: true },
         ].map((d, i) => (
-          <div key={i} style={{ padding: "4px 9px", borderRadius: 6, background: d.urgent ? theme.red + "11" : theme.bg, border: `1px solid ${d.urgent ? theme.red + "44" : theme.border}`, fontSize: 10 }}>
+          <div key={i} style={{ padding: "4px 8px", borderRadius: 6, background: d.urgent ? theme.red + "11" : theme.bg, border: `1px solid ${d.urgent ? theme.red + "44" : theme.border}`, fontSize: 10 }}>
             <span style={{ color: theme.textMuted }}>{d.label}: </span>
             <span style={{ color: d.urgent ? theme.red : theme.text, fontWeight: 600 }}>{d.date}</span>
           </div>
         ))}
       </div>
 
-      <div style={{ marginTop: 8, fontSize: 9, color: theme.textDim }}>
-        ⚠️ These are estimates based on UK 2025/26 rates. Consult a qualified accountant for your actual tax liability.
+      <div style={{ fontSize: 9, color: theme.textDim, marginBottom: 8 }}>
+        ⚠️ Estimates based on UK 2025/26 rates. Consult a qualified accountant for your actual liability.
       </div>
 
-      {/* PDF Download */}
-      <button
-        onClick={() => {
-          const content = `SOLOOS — TAX SUMMARY REPORT
-UK Self Assessment 2025/26
-Generated: ${new Date().toLocaleDateString("en-GB")}
-${"─".repeat(40)}
-
-INCOME & DEDUCTIONS
-─────────────────────────────
-Estimated Annual Revenue:    £${annualRevenue.toLocaleString()}
-Business Expenses:           £${expenses.toLocaleString()}
-Pension Contributions:       £${pensionContribs.toLocaleString()}
-─────────────────────────────
-Taxable Profit:              £${profit.toLocaleString()}
-Personal Allowance:          £12,570
-Taxable Income:              £${taxableIncome.toLocaleString()}
-
-TAX BREAKDOWN
-─────────────────────────────
-Income Tax (${taxBand}):
-  Basic Rate (20%):          £${Math.round(basicTax).toLocaleString()}
-  Higher Rate (40%):         £${Math.round(higherTax).toLocaleString()}
-  Additional Rate (45%):     £${Math.round(additionalTax).toLocaleString()}
-Total Income Tax:            £${Math.round(totalIncomeTax).toLocaleString()}
-
-National Insurance:
-  Class 2:                   £${Math.round(class2).toLocaleString()}
-  Class 4 (lower):           £${Math.round(class4Lower).toLocaleString()}
-  Class 4 (upper):           £${Math.round(class4Upper).toLocaleString()}
-Total NI:                    £${Math.round(totalNI).toLocaleString()}
-
-─────────────────────────────
-TOTAL TAX BILL:              £${Math.round(totalTax).toLocaleString()}
-Effective Tax Rate:          ${effectiveRate}%
-─────────────────────────────
-
-MONTHLY SAVINGS PLAN
-─────────────────────────────
-Exact amount to set aside:   £${monthlySet.toLocaleString()}/month
-25% rule (safe estimate):    £${recommended25.toLocaleString()}/month
-
-KEY HMRC DATES
-─────────────────────────────
-Payment on account 1:        31 January 2026
-Payment on account 2:        31 July 2026
-Self Assessment deadline:    31 January 2027
-
-─────────────────────────────
-⚠ These figures are estimates only.
-Please consult a qualified accountant
-for your actual tax liability.
-─────────────────────────────
-Generated by SoloOS — solo-os1828.vercel.app`;
-
-          const blob = new Blob([content], { type: "text/plain" });
-          const url = URL.createObjectURL(blob);
-          const a = document.createElement("a");
-          a.href = url;
-          a.download = `SoloOS-Tax-Summary-${new Date().getFullYear()}.txt`;
-          document.body.appendChild(a);
-          a.click();
-          document.body.removeChild(a);
-          URL.revokeObjectURL(url);
-        }}
-        style={{ ...s.btn("ghost"), width: "100%", marginTop: 10, padding: "9px", fontSize: 11, border: `1px solid ${theme.gold}44`, color: theme.gold, display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}
-      >
-        📥 Download Tax Summary Report
+      {/* Download button */}
+      <button onClick={() => downloadReport(view)} style={{ ...s.btn("ghost"), width: "100%", padding: "9px", fontSize: 11, border: `1px solid ${theme.gold}44`, color: theme.gold, display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}>
+        📥 Download {view === "annual" ? "Annual" : "Quarterly"} Tax Report
       </button>
     </Card>
   );
 }
+
+
 
 // ── TIME TRACKER ──────────────────────────────────────────
 const initEntries = [];
